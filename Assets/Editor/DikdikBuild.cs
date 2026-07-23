@@ -40,6 +40,27 @@ public static class DikdikBuild
         });
     }
 
+    /// <summary>
+    /// Playtest build. Mono rather than IL2CPP, because IL2CPP takes minutes and this
+    /// exists to be thrown away after twenty minutes of someone driving a rover around.
+    /// Shipping builds still use <see cref="Windows"/>.
+    /// </summary>
+    [MenuItem("Dikdik/Build/Windows (fast playtest)")]
+    public static void WindowsFast()
+    {
+        Shared();
+        PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+
+        Run(new BuildPlayerOptions
+        {
+            scenes = Scenes(),
+            locationPathName = "Builds/Playtest/Dikdik.exe",
+            target = BuildTarget.StandaloneWindows64,
+            targetGroup = BuildTargetGroup.Standalone,
+            options = BuildOptions.Development
+        });
+    }
+
     [MenuItem("Dikdik/Build/Web")]
     public static void Web()
     {
@@ -95,21 +116,38 @@ public static class DikdikBuild
     }
 
     /// <summary>
-    /// Every enabled scene in build settings, in order. Kept as one source of truth so a
-    /// level added to the editor list cannot be missing from the shipped build.
+    /// The shipped scene list, in order, declared here rather than in the editor's
+    /// build settings window.
+    ///
+    /// Build settings is a binary asset that someone has to remember to update, and a
+    /// level missing from it fails silently: the build succeeds and the level simply
+    /// is not in the game. Declaring it in code means a missing scene is a compile-time
+    /// visible line in a diff, and the editor list is written from this rather than
+    /// read into it.
+    ///
+    /// Boot must be first. It creates the bus, the producers and the journal, then
+    /// loads the level after it.
     /// </summary>
+    private static readonly string[] ShippedScenes =
+    {
+        "Assets/Scenes/Boot.unity",
+        "Assets/Scenes/Level01.unity"
+    };
+
     private static string[] Scenes()
     {
-        var scenes = EditorBuildSettings.scenes
-            .Where(scene => scene.enabled)
-            .Select(scene => scene.path)
+        var missing = ShippedScenes.Where(path => !File.Exists(path)).ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException(
+                "Scenes listed for the build do not exist: " + string.Join(", ", missing));
+
+        // Keep the editor's list in step, so opening the project by hand behaves the
+        // same way the command line build does.
+        EditorBuildSettings.scenes = ShippedScenes
+            .Select(path => new EditorBuildSettingsScene(path, true))
             .ToArray();
 
-        if (scenes.Length == 0)
-            throw new InvalidOperationException(
-                "No enabled scenes in build settings. Nothing would ship.");
-
-        return scenes;
+        return ShippedScenes;
     }
 
     private static void Run(BuildPlayerOptions options)

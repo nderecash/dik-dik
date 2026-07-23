@@ -34,7 +34,12 @@ namespace Dikdik.Game
 
         [SerializeField] private RoverController rover;
 
+        [Tooltip("Emissive band on the shell. In a silhouette world where every solid " +
+                 "thing renders black, this is how the rover is visible at all.")]
+        [SerializeField] private Renderer shell;
+
         private Light _light;
+        private Material _shellMaterial;
         private bool _on = true;
         private Color _target;
         private float _pulseUntil;
@@ -44,6 +49,11 @@ namespace Dikdik.Game
             _light = GetComponent<Light>();
             _target = idleColour;
             _light.color = idleColour;
+
+            // Instanced so one rover changing colour does not repaint every object
+            // sharing the material.
+            if (shell != null)
+                _shellMaterial = shell.material;
         }
 
         private void OnEnable()
@@ -103,6 +113,15 @@ namespace Dikdik.Game
             Pulse(blockedColour);
         }
 
+        /// <summary>
+        /// The visual half of a junction ping. Called at the same instant as the tone,
+        /// never instead of it and never after it.
+        /// </summary>
+        public void SignalJunction()
+        {
+            Pulse(heardColour);
+        }
+
         private void Pulse(Color colour)
         {
             _light.color = colour;
@@ -116,6 +135,15 @@ namespace Dikdik.Game
 
             var wanted = _on ? onIntensity : offIntensity;
             _light.intensity = Mathf.Lerp(_light.intensity, wanted, Time.deltaTime * fadeSpeed);
+
+            // The shell carries the same signal as the lamp. Someone looking at the
+            // rover and someone looking at the pool of light it casts get told the
+            // same thing at the same moment.
+            if (_shellMaterial != null)
+            {
+                var dim = _on ? 1f : 0.25f;
+                _shellMaterial.color = _light.color * dim;
+            }
         }
     }
 }
