@@ -88,6 +88,14 @@ namespace Dikdik.Game
             Save();
         }
 
+        /// <summary>
+        /// Writes the values but does not flush to disk.
+        ///
+        /// The settings screen has sliders, and a slider being dragged produces a new
+        /// value every frame. PlayerPrefs.Save writes the file, so flushing on every
+        /// change would hit the disk sixty times a second for as long as someone holds
+        /// the mouse down. Setting the value is cheap; committing it is not.
+        /// </summary>
         private static void Save()
         {
             PlayerPrefs.SetFloat(Prefix + "gameSpeed", _gameSpeed);
@@ -95,8 +103,16 @@ namespace Dikdik.Game
             PlayerPrefs.SetFloat(Prefix + "textScale", _textScale);
             PlayerPrefs.SetInt(Prefix + "subtitles", _subtitles ? 1 : 0);
             PlayerPrefs.SetInt(Prefix + "voiceEnabled", _voiceEnabled ? 1 : 0);
-            PlayerPrefs.Save();
             Changed?.Invoke();
+        }
+
+        /// <summary>
+        /// Commit to disk. Called when the settings screen closes and on quit, which
+        /// covers every way a player can stop changing things.
+        /// </summary>
+        public static void Flush()
+        {
+            PlayerPrefs.Save();
         }
 
         private static void Set<T>(ref T field, T value, string _)

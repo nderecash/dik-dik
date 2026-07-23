@@ -40,6 +40,11 @@ public static class BootSceneBuilder
         BuildVoice(root);
         root.AddComponent<KeyboardCommandProducer>();
 
+        // Settings live with the persistent systems, so Escape works in every scene
+        // including any menu we add later. Never per-level, or a level could ship
+        // without them and quietly gate access behind progress.
+        root.AddComponent<SettingsMenu>();
+
         var comms = BuildConsole(root, out var camera);
 
         var bootSerialized = new SerializedObject(bootstrap);
