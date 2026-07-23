@@ -131,7 +131,8 @@ public static class DikdikBuild
     private static readonly string[] ShippedScenes =
     {
         "Assets/Scenes/Boot.unity",
-        "Assets/Scenes/Level01.unity"
+        "Assets/Scenes/Level01.unity",
+        "Assets/Scenes/Level03.unity"
     };
 
     private static string[] Scenes()

@@ -24,7 +24,23 @@ namespace Dikdik.Game
     /// </summary>
     public class SettingsMenu : MonoBehaviour
     {
-        private enum Tab { Play, Display, Controls }
+        private enum Tab { Play, Display, Controls, Levels }
+
+        /// <summary>
+        /// Every level, jumpable at any time.
+        ///
+        /// It started as a playtest convenience and is staying. Letting someone skip a
+        /// level they cannot finish is the right thing to offer in a game arguing that
+        /// people should not be locked out of things, and refusing would be a strange
+        /// hill for this project in particular to die on.
+        ///
+        /// Grows as levels are added.
+        /// </summary>
+        private static readonly (string Scene, string Label)[] Levels =
+        {
+            ("Level01", "1  Dust corridor"),
+            ("Level03", "3  Night side")
+        };
 
         [SerializeField] private KeyCode openKey = KeyCode.Escape;
 
@@ -133,6 +149,7 @@ namespace Dikdik.Game
             if (GUILayout.Button("Play", button)) _tab = Tab.Play;
             if (GUILayout.Button("Display", button)) _tab = Tab.Display;
             if (GUILayout.Button("Controls", button)) _tab = Tab.Controls;
+            if (GUILayout.Button("Levels", button)) _tab = Tab.Levels;
             GUILayout.EndHorizontal();
             GUILayout.Space(14);
 
@@ -143,6 +160,7 @@ namespace Dikdik.Game
                 case Tab.Play: DrawPlay(body, toggle); break;
                 case Tab.Display: DrawDisplay(body, toggle); break;
                 case Tab.Controls: DrawControls(body, button); break;
+                case Tab.Levels: DrawLevels(body, button); break;
             }
 
             GUILayout.EndScrollView();
@@ -232,6 +250,26 @@ namespace Dikdik.Game
 
             GUILayout.Space(8);
             GUILayout.Label("Escape cancels a rebind.", body);
+        }
+
+        private void DrawLevels(GUIStyle body, GUIStyle button)
+        {
+            GUILayout.Label("Go to any level, at any time. Nothing here is locked.", body);
+            GUILayout.Space(12);
+
+            foreach (var level in Levels)
+            {
+                if (!GUILayout.Button(level.Label, button))
+                    continue;
+
+                _open = false;
+                GameSettings.Flush();
+                UnityEngine.SceneManagement.SceneManager.LoadScene(level.Scene);
+                return;
+            }
+
+            GUILayout.Space(10);
+            GUILayout.Label("Levels 2, 4, 5 and 6 are still being built.", body);
         }
 
         /// <summary>Small persistent hint, so nobody has to guess the panel exists.</summary>
