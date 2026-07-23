@@ -17,6 +17,26 @@ neutral one.
 
 ---
 
+## Sound: everything you hear comes down the radio
+
+There is no air on the Moon, so nothing out there would reach you anyway. But you are
+not on the Moon. You are at a console.
+
+**Every diegetic sound in this game is what arrives over the link.** Salty's beeps, its
+telemetry, the supervisor's voice, your own console. Nothing else. That single rule makes
+the soundscape coherent, justifies the radio filter sitting on all of it, and turns the
+engine noise into Salty's own vibration sensor being relayed rather than a sound somehow
+crossing a vacuum.
+
+It also makes silence a texture rather than an absence, which the doubt system depends on.
+
+**Ambience may live in sound alone.** Engine hum, static, room tone: these carry no
+information, so they need no visual twin. The moment a sound carries something the player
+needs, it gets one. That distinction keeps "no essential information by sound alone"
+honest without making the game silent.
+
+---
+
 **Rules that apply to every level:**
 
 - Every accessibility setting is in the menu from first launch. A level shows you why an
