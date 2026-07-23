@@ -5,6 +5,18 @@ exactly from the [Game Accessibility Guidelines, Basic level](https://gameaccess
 
 Two minutes each. Roughly twelve to fifteen minutes, plus the broadcast.
 
+## Visual style: hard silhouette
+
+Black shapes against a pale sky. Kenney geometry, unlit or near-unlit, minimal texture.
+
+Chosen for three reasons and one of them was unplanned. It is cheap, it photographs well
+for the itch.io page, and Level 3 turns it into an argument: the style depends on a bright
+sky behind everything, the night side takes that away, and the high-contrast setting is
+what gives it back. An art style with a load-bearing assumption is more useful here than a
+neutral one.
+
+---
+
 **Rules that apply to every level:**
 
 - Every accessibility setting is in the menu from first launch. A level shows you why an
@@ -75,17 +87,33 @@ jargon, the person speaks plainly.
 > **"Provide high contrast between text/UI and background"**
 > **"Use an easily readable default font size"**
 
-**What happens.** The installation's lights are dead and Salty is working by lamp alone.
-Hazard edges, drop-offs and doorways are all there, just hard to separate from the ground.
-High-contrast mode, already in the menu, makes them legible.
+**What happens.** Salty crosses onto the night side. There is no sky glow here, and the
+installation's lights are dead.
 
-**The barrier.** Low contrast. Completable without the setting, just slower and with more
-rehearsal runs. **Never gated.**
+This matters because of how the rest of the game looks. Every other level is hard
+silhouette: black shapes read cleanly because there is a bright sky behind them. That is
+the whole visual language, and it is doing its work for free. On the night side there is
+nothing behind anything. Shapes stop being shapes. Drop-offs, doorways and hazards are all
+still there and none of them separate from the ground.
+
+High-contrast mode restores edge definition with rim lighting, artificially, because the
+sky is no longer doing it.
+
+**The barrier.** An art style whose central assumption has just failed. The level is
+completable without the setting, slower and with more rehearsal runs, but it is genuinely
+unpleasant, which is the honest version of the experience.
+
+**Why this is the strongest level of the six for the argument.** The look of this game
+assumes a light source behind everything. That assumption is invisible until it is absent,
+and when it is absent the design excludes you until a setting puts it back. That is the
+entire thesis, expressed in light rather than in speech, and nobody has to say it.
 
 **Intents.** Go, Stop, Left, Right, Light.
 
-**Build notes.** This is where Light finally earns its place in the vocabulary. High
-contrast should change hazard rendering, not just UI, or the setting looks cosmetic.
+**Build notes.** High contrast must change **hazard rendering**, not only UI, or it looks
+cosmetic. An outline or rim-light shader on hazard geometry is the cheapest honest version.
+This is also where Light finally earns its place in the vocabulary: Salty's lamp is the
+only thing you have before you find the setting.
 
 ---
 

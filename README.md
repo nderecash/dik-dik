@@ -189,12 +189,22 @@ It also has a real cost, and pretending otherwise would be dishonest. On-device 
 models, and small models are the worst performers on under-represented accents. Published
 evaluation on the EdAcc and AfriSpeech datasets finds Whisper does markedly worse on
 African-accented English than on North American English, and the tiny and base models rank
-at the bottom. My own English is not the accent these models were mostly trained on. If
-recognition works worse on my voice than on an American one, that finding goes in this
-README. It is a more useful thing to publish than a number I tuned until it flattered me.
+at the bottom of those evaluations. The models small enough to run on a laptop are the ones
+that serve the fewest people.
 
-<!-- Moses: say this in your own words and your own terms. It is your voice being
-     described, and it will land harder from you than from a careful paraphrase. -->
+That is documented, expected, and I hit it firsthand within a day of building. The model
+transcribed my "turn" as "10" six times in one sitting. It is a small, dull, entirely
+predictable instance of a known result, which is exactly why it is worth publishing: the
+gap is not hypothetical, and it does not take a study to meet it. It takes one person, one
+microphone, and an afternoon.
+
+I could have hidden it. Seeding the model with my own vocabulary would have improved the
+number, and running the session again until it flattered me would have improved it further.
+That seemed a poor way to open a project about being heard.
+
+<!-- Moses: this is the research-context framing you picked. Sharpen it in your own terms
+     if you want to; I have deliberately not written anything about your accent or where
+     you are from, because that is yours to say and not mine to assume. -->
 
 
 ---
