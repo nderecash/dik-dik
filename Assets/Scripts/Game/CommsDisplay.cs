@@ -79,6 +79,26 @@ namespace Dikdik.Game
             GameSettings.Changed -= ApplySettings;
         }
 
+        /// <summary>
+        /// Salty asking something, rather than us reporting on Salty.
+        ///
+        /// Held on screen with no timeout, because it is a question and questions wait.
+        /// The next command the player gives will replace it.
+        /// </summary>
+        public void ShowRoverQuestion(string question)
+        {
+            if (heardText != null)
+                heardText.text = question;
+
+            if (statusText != null)
+            {
+                statusText.text = GameSettings.Subtitles ? "Salty is waiting." : string.Empty;
+                statusText.color = GameSettings.HighContrast ? Color.white : transitColour;
+            }
+
+            _clearAt = 0f;
+        }
+
         /// <summary>Called by the voice producer when speech starts and stops.</summary>
         public void SetListening(bool listening)
         {

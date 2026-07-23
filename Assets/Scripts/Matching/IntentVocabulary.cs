@@ -25,12 +25,18 @@ namespace Dikdik.Matching
                 // session. Their absence was not a small gap: without "start", the
                 // sentence "start moving" fell through to edit distance and landed on
                 // "stop moving", so asking the rover to set off halted it instead.
+                // The plain agreements at the end are here because the rover asks
+                // questions now. When it stops after a long stretch and says "keep
+                // going?", the natural answer is "yes", and a rover that does not
+                // understand the answer to its own question would be a poor advert
+                // for this project.
                 [IntentId.Go] = new[]
                 {
-                    "start moving", "keep moving", "go forward", "move forward",
-                    "lets continue", "keep going", "get going", "carry on",
-                    "go ahead", "continue", "go on", "start", "move",
-                    "forward", "go", "walk", "drive"
+                    "yes keep going", "start moving", "keep moving", "go forward",
+                    "move forward", "lets continue", "keep going", "get going",
+                    "carry on", "go ahead", "affirmative", "continue", "go on",
+                    "correct", "start", "move", "forward", "go", "walk", "drive",
+                    "yes", "yeah", "yep"
                 },
 
                 // "whoa" is how people actually stop a thing that is moving. It was

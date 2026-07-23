@@ -130,9 +130,9 @@ namespace Dikdik.Game
             if (rover != null)
                 rover.ResetTo(_startPosition, _startYaw);
 
-            // FindObjectsByType with None sorting: we do not care about order and
-            // sorting a scene's worth of objects every reset is wasted work.
-            var resettables = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
+            // No sort mode: we do not care about order, and Unity 6.5 deprecated the
+            // sorted overload anyway because instance IDs are going away.
+            var resettables = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude)
                 .OfType<IResettable>();
 
             foreach (var item in resettables)

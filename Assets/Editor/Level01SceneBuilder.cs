@@ -172,12 +172,37 @@ public static class Level01SceneBuilder
         lightSerialized.ApplyModifiedPropertiesWithoutUndo();
 
         // ------------------------------------------------------------------
+        // Doubt. After a long stretch with no word from the console, Salty stops
+        // and asks whether to carry on.
+        //
+        // Not a feature so much as a correction. The rover acts only when spoken to,
+        // so a long unbroken drive is it acting unbidden, deciding to continue over
+        // and over with nobody asking. Stopping at a junction works because a junction
+        // is a question; distance is also a question, only quieter.
+        // ------------------------------------------------------------------
+        var pingClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/junction_ping.wav");
+        var queryClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/rover_query.wav");
+
+        var doubt = rover.AddComponent<RoverDoubt>();
+
+        // ------------------------------------------------------------------
         // Junctions at every turn
         // ------------------------------------------------------------------
         var junctions = new GameObject("Junctions");
         var audio = rover.AddComponent<AudioSource>();
         audio.playOnAwake = false;
         audio.spatialBlend = 0f;
+
+        var doubtSerialized = new SerializedObject(doubt);
+        SetRef(doubtSerialized, "rover", controller);
+        SetRef(doubtSerialized, "roverLight", roverLight);
+        SetRef(doubtSerialized, "source", audio);
+        SetRef(doubtSerialized, "queryClip", queryClip);
+
+        // 20 metres is roughly one long corridor here. Tune after playtesting: too
+        // often reads as nagging, too rare and the silences go back to being empty.
+        doubtSerialized.FindProperty("distanceBeforeDoubt").floatValue = 20f;
+        doubtSerialized.ApplyModifiedPropertiesWithoutUndo();
 
         for (var i = 1; i < corners.Count - 1; i++)
         {
@@ -208,6 +233,7 @@ public static class Level01SceneBuilder
             junctionSerialized.FindProperty("index").intValue = i;
             SetRef(junctionSerialized, "roverLight", roverLight);
             SetRef(junctionSerialized, "pingSource", audio);
+            SetRef(junctionSerialized, "pingClip", pingClip);
             SetRef(junctionSerialized, "marker", markerRenderer);
             junctionSerialized.ApplyModifiedPropertiesWithoutUndo();
         }

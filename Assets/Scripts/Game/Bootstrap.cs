@@ -69,7 +69,7 @@ namespace Dikdik.Game
         private void WireVoice()
         {
 #if !UNITY_WEBGL || UNITY_EDITOR
-            var voice = FindFirstObjectByType<VoiceCommandProducer>();
+            var voice = FindAnyObjectByType<VoiceCommandProducer>();
             if (voice == null)
                 return;
 
@@ -90,7 +90,7 @@ namespace Dikdik.Game
             get
             {
 #if !UNITY_WEBGL || UNITY_EDITOR
-                var voice = FindFirstObjectByType<VoiceCommandProducer>();
+                var voice = FindAnyObjectByType<VoiceCommandProducer>();
                 return voice != null && voice.IsAvailable;
 #else
                 return false;

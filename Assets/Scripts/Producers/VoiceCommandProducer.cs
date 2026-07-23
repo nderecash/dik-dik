@@ -76,8 +76,8 @@ namespace Dikdik.Producers
 
         private void Reset()
         {
-            whisper = FindFirstObjectByType<WhisperManager>();
-            microphone = FindFirstObjectByType<MicrophoneRecord>();
+            whisper = FindAnyObjectByType<WhisperManager>();
+            microphone = FindAnyObjectByType<MicrophoneRecord>();
         }
 
         private void OnEnable()
