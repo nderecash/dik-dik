@@ -51,20 +51,32 @@ namespace Dikdik.Game
             Paint(restingColour);
         }
 
+        [Header("Behaviour")]
+        [Tooltip("Stop the rover on arrival and wait to be told which way. " +
+                 "Without this, a 2.6 second delay means every corner is overshot.")]
+        [SerializeField] private bool holdRoverOnArrival = true;
+
         private void OnTriggerEnter(Collider other)
         {
-            if (other.GetComponentInParent<RoverController>() == null)
+            var rover = other.GetComponentInParent<RoverController>();
+            if (rover == null)
                 return;
 
             if (announceOnce && HasBeenReached)
                 return;
 
-            Announce();
+            Announce(rover);
         }
 
-        private void Announce()
+        private void Announce(RoverController rover)
         {
             HasBeenReached = true;
+
+            // Stop first, announce second. The ping is then a question rather than a
+            // notification: it says "I am here, which way", and the rover is genuinely
+            // waiting for the answer instead of rolling on while you decide.
+            if (holdRoverOnArrival && rover != null)
+                rover.HoldAtJunction();
 
             // Sound.
             if (pingSource != null && pingClip != null)

@@ -27,10 +27,16 @@ public static class Level01SceneBuilder
     private const string ScenePath = "Assets/Scenes/Level01.unity";
     private const string MaterialFolder = "Assets/Materials";
 
-    private const float CorridorHalfWidth = 3.5f;
-    private const float WallHeight = 5f;
+    // Tuned after the first playtest. The corridor was too tight and the walls too
+    // tall: turns needed precision the transport delay cannot deliver, and the camera
+    // spent half of every corner staring at a wall face.
+    //
+    // Precision under latency is Level 5's job. This level teaches the loop and should
+    // forgive everything.
+    private const float CorridorHalfWidth = 5f;     // was 3.5
+    private const float WallHeight = 3.2f;          // was 5, camera now sees over them
     private const float WallThickness = 1.2f;
-    private const float JunctionGap = 4f;
+    private const float JunctionGap = 5.5f;         // was 4, wider openings
 
     /// <summary>
     /// The corridor, as turns. Each entry is a heading in degrees and a length.
@@ -179,15 +185,20 @@ public static class Level01SceneBuilder
             junctionObject.transform.SetParent(junctions.transform);
             junctionObject.transform.position = corners[i] + Vector3.up * 0.5f;
 
+            // Small and centred on the corner. The rover halts the moment it enters,
+            // so a large trigger would stop it well short and the following 90 degree
+            // turn would point it into a wall. Three units is comfortably caught at
+            // walking pace and leaves the rover close enough to the corner that
+            // turning lines it up with the next corridor.
             var trigger = junctionObject.AddComponent<BoxCollider>();
             trigger.isTrigger = true;
-            trigger.size = new Vector3(5f, 3f, 5f);
+            trigger.size = new Vector3(3f, 3f, 3f);
 
             var marker = GameObject.CreatePrimitive(PrimitiveType.Cube);
             marker.name = "Marker";
             marker.transform.SetParent(junctionObject.transform, false);
             marker.transform.localPosition = new Vector3(0f, -0.45f, 0f);
-            marker.transform.localScale = new Vector3(4.5f, 0.05f, 4.5f);
+            marker.transform.localScale = new Vector3(7f, 0.05f, 7f);
             var markerRenderer = marker.GetComponent<Renderer>();
             markerRenderer.sharedMaterial = markerMaterial;
             Object.DestroyImmediate(marker.GetComponent<Collider>());

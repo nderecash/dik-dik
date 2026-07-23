@@ -45,8 +45,12 @@ namespace Dikdik.Game
 
         public bool IsMoving { get; private set; }
 
+        /// <summary>True while stopped at a junction, waiting to be told which way.</summary>
+        public bool IsWaitingAtJunction { get; private set; }
+
         private float _targetYaw;
         private int _direction;   // 1 forward, -1 back, 0 still
+        private bool _resumeAfterTurn;
 
         private void Awake()
         {
@@ -82,11 +86,11 @@ namespace Dikdik.Game
                     break;
 
                 case IntentId.Left:
-                    _targetYaw -= turnStep;
+                    Turn(-turnStep);
                     break;
 
                 case IntentId.Right:
-                    _targetYaw += turnStep;
+                    Turn(turnStep);
                     break;
 
                 default:
@@ -98,6 +102,42 @@ namespace Dikdik.Game
             Acted?.Invoke(intent);
         }
 
+        /// <summary>
+        /// Stop and wait to be told which way. Called by a junction on arrival.
+        ///
+        /// This exists because the first playtest found the real problem: with a 2.6
+        /// second delay, a corner that needs "forward a little, then turn" is a corner
+        /// you overshoot every time. The answer was never a shorter delay. Precision
+        /// under latency is what Level 5 is for, and putting it in the level that
+        /// teaches the loop was my mistake.
+        ///
+        /// It is also more in character. A rover that rolls past a decision point
+        /// without being asked is doing something on its own, and this one does not.
+        /// </summary>
+        public void HoldAtJunction()
+        {
+            if (IsWaitingAtJunction)
+                return;
+
+            SetDirection(0);
+            IsWaitingAtJunction = true;
+        }
+
+        private void Turn(float degrees)
+        {
+            _targetYaw += degrees;
+
+            // Turning while stopped at a junction means go that way, not pivot on the
+            // spot and wait for a second instruction. Making someone say "left" and
+            // then "go" at every corner would be the interface asking to be obeyed
+            // twice for one decision.
+            if (IsWaitingAtJunction)
+            {
+                _resumeAfterTurn = true;
+                IsWaitingAtJunction = false;
+            }
+        }
+
         private void Update()
         {
             // One multiplier, applied to everything the rover does. At 0.25 the whole
@@ -106,7 +146,21 @@ namespace Dikdik.Game
             var delta = Time.deltaTime;
 
             TurnTowardTarget(delta, speedScale);
+            ResumeIfTurnFinished();
             MoveIfAsked(delta, speedScale);
+        }
+
+        private void ResumeIfTurnFinished()
+        {
+            if (!_resumeAfterTurn)
+                return;
+
+            var remaining = Mathf.Abs(Mathf.DeltaAngle(transform.eulerAngles.y, _targetYaw));
+            if (remaining > 1.5f)
+                return;
+
+            _resumeAfterTurn = false;
+            SetDirection(1);
         }
 
         private void TurnTowardTarget(float delta, float speedScale)
@@ -139,6 +193,9 @@ namespace Dikdik.Game
         private void SetDirection(int direction)
         {
             _direction = direction;
+
+            if (direction != 0)
+                IsWaitingAtJunction = false;
 
             var moving = direction != 0;
             if (moving == IsMoving)
