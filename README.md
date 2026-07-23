@@ -230,14 +230,36 @@ them in `StreamingAssets`.
 
 ---
 
-## What I would do next time
+## What I would do next
 
-*To be written once it ships, honestly, including the parts that did not work.*
+Designed, costed, and deliberately not built. Full write-ups with the actual approaches are
+in [docs/future-directions.md](docs/future-directions.md).
 
-Already on the list:
+**Non-verbal input, and it is the one that matters.** During remapping, record any sound at
+all: a grunt, a hum, a whistle, a click. Map each to a command. The game becomes playable
+without a single word.
 
-- **One-switch play.** I scoped a level around it and cut it. It is an Advanced guideline
-  and real work, and half-building it would have been worse than admitting I did not.
-- **Testing with anyone but myself.** Every accuracy number here comes from one voice, one
-  microphone, one room. That is not evaluation, it is a smoke test, and I will label it as
-  one wherever it appears.
+Every speech interface, this one included, assumes the player produces words in a language
+the model was trained on. That excludes non-speaking people, people with speech differences,
+people whose language has no model, and people who would simply rather not talk. A voice
+interface that does not require speech is a different proposition to one that does.
+
+Speech recognition is the wrong tool for it, and this project has its own evidence:
+Whisper transcribed one of my recorded utterances as `[ Grunts ]`, and the code now discards
+that as non-speech before it reaches the matcher. Asking an ASR model to hear a hum is
+asking it to hallucinate words that were never there.
+
+It does not need a model. Template matching on raw audio does it: record two or three
+reference clips per intent, extract duration, mean pitch and energy envelope, match by
+nearest distance with a rejection threshold. A few hundred lines against the `float[]` we
+already have, and faster than the speech path because there is no inference.
+
+**I did not run out of ideas here, I ran out of days.** It is three to five days for a
+second complete input system, and the commitment at the start of this project was that ship
+date beats scope. This is the largest thing that rule has cost, and it is first in the queue.
+
+Also on the list: evaluation with more than one voice, which is the change that would move
+this from a game with an argument to a piece of work with evidence. One-switch play, cut
+because half-building it would be a broken promise to exactly the people it claims to serve.
+A local language model for intent matching, rejected in favour of something debuggable, and
+the logs show that was the right call.

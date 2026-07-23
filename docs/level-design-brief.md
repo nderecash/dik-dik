@@ -1,12 +1,12 @@
 # Dik-dik: level design brief
 
-You are designing **five** levels. This document gives you the verified constraints so
+You are designing **six** levels. This document gives you the verified constraints so
 you are designing against real guidelines rather than remembered ones.
 
-> Five, not six. The sixth level was traded for non-verbal input: mapping grunts, whistles
-> and whatever noise a person can make, for people no speech recogniser serves. That is a
-> better use of three to five days than another level. See
-> [design-notes-from-moses.md](design-notes-from-moses.md).
+> Six, not five. Non-verbal input was briefly going to replace the sixth level and is now
+> deferred to [future-directions.md](future-directions.md) instead, written up as designed
+> and costed rather than as something we could not do. The rule from here on: anything
+> expensive goes on that page rather than into the build.
 
 Source for every quoted guideline below: the
 [Game Accessibility Guidelines, Basic level](https://gameaccessibilityguidelines.com/basic/).
@@ -122,7 +122,7 @@ sounds alone" in a single rule, applied everywhere, rather than remembered per l
 **The final level wakes every rover at once.** One transmission, all of them. Access
 multiplying is the argument, and doing it one at a time would say the opposite.
 
-**Two minutes a level, five levels.** Roughly ten to twelve minutes end to end, plus the
+**Two minutes a level, six levels.** Roughly twelve to fifteen minutes end to end, plus the
 final broadcast.
 
 **The ending is your own voice.** The game keeps every clip you speak. At the end you stop
@@ -130,10 +130,10 @@ commanding and start broadcasting, and what goes out on the open loop is your ac
 recording, in order, unedited, waking every dormant rover. Design the last level knowing
 the payoff is already written and it is made of whatever the player said along the way.
 
-**Non-verbal input replaces the sixth level.** During remapping the player can record any
-sound at all, a grunt, a whistle, a hum, and map it to a command. Whisper cannot do this;
-it is a separate producer matching raw audio against recorded templates. Worth knowing
-while you design: not every player will be using words.
+Two consequences for you. The last level does not need to earn its ending, because the
+player already did that across the other five. And every level is quietly a recording
+session, so a level that gets someone talking is worth more than a level that gets someone
+issuing single words.
 
 ### On letting the player pick level length
 
