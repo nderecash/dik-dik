@@ -1,157 +1,169 @@
-# Dik-dik: voice script
+# Voice script — read this aloud
 
-Lines for the supervisor on the loop. These are the systemic ones, needed regardless of how
-the levels turn out. Level-specific dialogue comes after you have designed the levels.
+**41 lines.** Read straight down, in order. Pause about two seconds between each one.
 
-**Two speakers, one recorded.**
+Everything about *how* to record is in **[TASK-voice-recording.md](TASK-voice-recording.md)**.
+This page is only the words.
 
-- **Supervisor** (you, recorded, radio-filtered). The other human on the console.
-- **Salty**, the rover. Never speaks in words. It answers in text on screen, tones and
-  light. Cheaper, more in character, and it satisfies subtitles plus dual-coding by design
-  rather than by discipline.
-
-The call sign is **Salty**, from *Madoqua saltiana*, one of the four real dik-dik species.
-One clean English word, so speech recognition catches it every time. That matters more than
-it sounds: you will address the rover by name constantly, and a call sign the game mishears
-would be the project making the exact mistake it is arguing against.
-
-Verified in the matcher: "Salty, go" resolves to Go, "okay Salty, stop" resolves to Stop,
-and a bare "Salty" resolves to nothing at all, because calling someone is not ordering them.
-
-**Delivery for all of it:** calm, brief, slightly bored. A flight controller has done this
-a thousand times. The dry lines are funny because nobody performs them. If a line sounds
-like a joke when you read it aloud, underplay it further.
-
-**File naming:** one line per file, named as marked. `sup_boot_01.wav` and so on.
+**Overall delivery:** calm, brief, slightly bored. A flight controller has done this a
+thousand times. If a line sounds like a joke when you read it, say it flatter.
 
 ---
 
-## 1. Boot and handshake — `sup_boot_*`
+## 1–5 · Opening
 
-Played once, at first launch. This is the whole tutorial.
+*Played once, at first launch. This is the whole tutorial. Steady and unhurried.*
 
-| File | Line | Note |
-|---|---|---|
-| `sup_boot_01` | "Console is yours. Salty is on the surface and waiting." | |
-| `sup_boot_02` | "It will not move on its own. It moves when you tell it to." | The premise, said plainly, once |
-| `sup_boot_03` | "Talk to it, or type to it. Same loop either way, it cannot tell the difference." | Parity stated out loud, early |
-| `sup_boot_04` | "Round trip is about two and a half seconds. That is the Moon, not you." | Pre-empts the player blaming themselves for latency |
-| `sup_boot_05` | "Everything you need is in settings. It is all on already. Change what helps." | Settings are never earned |
+**1.** Console is yours. Salty is on the surface and waiting.
 
----
+**2.** It will not move on its own. It moves when you tell it to.
 
-## 2. Acknowledgements — `sup_ack_*`
+**3.** Talk to it, or type to it. Same loop either way. It cannot tell the difference.
 
-**Do not play one of these after every command.** Constant chatter is exhausting. Use them
-sparingly: first success in a level, and occasionally after a long silence. The rover's own
-light and text carry the routine acknowledgements.
+**4.** Round trip is about two and a half seconds. That is the Moon, not you.
 
-| File | Line |
-|---|---|
-| `sup_ack_01` | "Copy." |
-| `sup_ack_02` | "Salty has it." |
-| `sup_ack_03` | "Good."  |
-| `sup_ack_04` | "That worked." |
-| `sup_ack_05` | "It heard you." |
+**5.** Everything you need is in settings. It is all switched on already. Change what helps.
 
 ---
 
-## 3. Not understood — `sup_miss_*`
+## 6–10 · Small acknowledgements
 
-The most important lines in the script. **Never blame the player.** The failure is the
-listening, not the speaking. Read these flat and slightly apologetic on the machine's
-behalf.
+*Brief. Almost thrown away. These are the shortest lines in the script.*
 
-| File | Line |
-|---|---|
-| `sup_miss_01` | "It did not catch that. Try it another way." |
-| `sup_miss_02` | "Nothing came through. Say it however you like, it is not fussy." |
-| `sup_miss_03` | "That did not land. Not your fault." |
-| `sup_miss_04` | "Signal is fine. The understanding is the hard part." |
-| `sup_miss_05` | "Again, when you are ready. No rush on this end." |
+**6.** Copy.
 
-If recognition turns out to be poor on your voice, `sup_miss_04` becomes the most honest
-line in the game.
+**7.** Salty has it.
+
+**8.** Good.
+
+**9.** That worked.
+
+**10.** It heard you.
 
 ---
 
-## 4. Blocked — `sup_block_*`
+## 11–15 · When it did not understand
 
-The rover stopped because something is in the way.
+*The most important lines here. Never blame the player. The failure is the listening, not
+the speaking. Flat, and faintly apologetic on the machine's behalf.*
 
-| File | Line |
-|---|---|
-| `sup_block_01` | "It has stopped. Something ahead of it." |
-| `sup_block_02` | "That is a wall. It will wait." |
-| `sup_block_03` | "Held position. Give it another heading." |
+**11.** It did not catch that. Try it another way.
 
----
+**12.** Nothing came through. Say it however you like. It is not fussy.
 
-## 5. Simulation reset — `sup_reset_*`
+**13.** That did not land. Not your fault.
 
-There is no failure here. This is a rehearsal run being discarded, which is what mission
-control actually does before uplinking. **No line may imply the player did badly.**
+**14.** Signal is fine. The understanding is the hard part.
 
-| File | Line |
-|---|---|
-| `sup_reset_01` | "Sim aborted. Resetting." |
-| `sup_reset_02` | "That is not how that goes. Take two." |
-| `sup_reset_03` | "Run it back." |
-| `sup_reset_04` | "Noted. Again from the top." |
-| `sup_reset_05` | "Good. Now we know. Again." |
-| `sup_reset_06` | "This is why we rehearse." |
-
-These cycle in order rather than at random. Random repeats itself in a way players notice
-and read as the game not listening.
+**15.** Again, when you are ready. No rush on this end.
 
 ---
 
-## 6. Level complete — `sup_done_*`
+## 16–18 · Something in the way
 
-| File | Line |
-|---|---|
-| `sup_done_01` | "That is the one. Logging it." |
-| `sup_done_02` | "Clean run. Uplinking." |
-| `sup_done_03` | "Salty is through. Next sector." |
+*Matter of fact. The rover is fine, it is just stopped.*
 
----
+**16.** It has stopped. Something ahead of it.
 
-## 7. Long silence — `sup_idle_*`
+**17.** That is a wall. It will wait.
 
-If the player says nothing for a while. Warm, never nagging. They may be thinking, or away,
-or working out how to phrase something.
-
-| File | Line |
-|---|---|
-| `sup_idle_01` | "Still here." |
-| `sup_idle_02` | "Salty is holding. It does not mind waiting." |
-| `sup_idle_03` | "Take your time. It has nowhere to be." |
+**18.** Held position. Give it another heading.
 
 ---
 
-## 8. The final level — `sup_final_*`
+## 19–24 · Run it again
 
-The other rovers wake all at once. This is the argument landing, so it is the only place in
-the script where the supervisor is allowed to drop the flat delivery, and even here only
-slightly.
+*A rehearsal being discarded, not a failure. Nothing here may sound like disappointment.*
 
-| File | Line | Note |
-|---|---|---|
-| `sup_final_01` | "There are others out there. Dormant. Same build, same problem." | |
-| `sup_final_02` | "You are on the open loop now. Everything hears you." | The mechanism |
-| `sup_final_03` | "Say it once." | Beat before the player speaks |
-| `sup_final_04` | "…" | Silence, held, while they wake |
-| `sup_final_05` | "All of them. One transmission." | Understate this. It carries itself |
-| `sup_final_06` | "That is the whole thing, really. Build it in once and it reaches everyone." | The only line permitted to say the theme |
+**19.** Sim aborted. Resetting.
 
-`sup_final_06` is the line I would cut first if it feels heavy-handed when you hear it. The
-game may say it better without saying it.
+**20.** That is not how that goes. Take two.
+
+**21.** Run it back.
+
+**22.** Noted. Again from the top.
+
+**23.** Good. Now we know. Again.
+
+**24.** This is why we rehearse.
 
 ---
 
-## Recording order
+## 25–27 · Level finished
 
-Record §3 and §5 first, while you are fresh. They are the ones players hear most, and they
-are the ones that carry the argument. §1 last, since boot lines only play once.
+*Quiet satisfaction. No fanfare.*
 
-Roughly 40 lines. About twenty minutes with retakes.
+**25.** That is the one. Logging it.
+
+**26.** Clean run. Uplinking.
+
+**27.** Salty is through. Next sector.
+
+---
+
+## 28–30 · Long silence
+
+*Warm. Never nagging. They may be thinking, or away, or working out how to say something.*
+
+**28.** Still here.
+
+**29.** Salty is holding. It does not mind waiting.
+
+**30.** Take your time. It has nowhere to be.
+
+---
+
+## 31–34 · Level 2, translating the station
+
+*An automated voice has just read out something impenetrable. You are translating it for a
+colleague. Dry. By line 34 you have stopped hiding what you think of whoever writes these.*
+
+**31.** Open the door.
+
+**32.** It means turn left.
+
+**33.** Ignore that. Just keep going forward.
+
+**34.** I have no idea who writes these. Head right.
+
+---
+
+## 35–37 · Level 4, console fault
+
+*The fault is the console's, not theirs. Helpful and unbothered. This is a two-second fix
+and your tone should say so.*
+
+**35.** Fault on your side, not Salty's. One of your controls has stuck.
+
+**36.** Remap it. Settings, controls. Takes a second.
+
+**37.** If you are on voice you are fine. Or teach it a new word for it, same screen.
+
+---
+
+## 38–41 · The rim
+
+*The only place in the script where the flatness lifts, and only slightly. Understate line
+40 especially. It carries itself.*
+
+**38.** There are others out there. Dormant. Same build, same problem.
+
+**39.** You are on the open loop now. Everything hears you.
+
+**40.** Say it once.
+
+**41.** All of them. One transmission.
+
+---
+
+## Done
+
+That is all 41. Back to
+**[TASK-voice-recording.md](TASK-voice-recording.md)**, Stage 4.
+
+### One line deliberately not here
+
+An earlier draft ended with *"That is the whole thing, really. Build it in once and it
+reaches everyone."* It is cut. The ending is your own voice playing back and waking every
+rover on the plain, and it says that better than the line does. Saying it twice would be
+saying it worse.

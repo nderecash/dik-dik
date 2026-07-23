@@ -1,4 +1,11 @@
-# Recording and processing the mission control voice
+# Reference: why the audio processing is shaped this way
+
+> **You do not need this page to record.** Follow
+> [TASK-voice-recording.md](TASK-voice-recording.md) instead; it walks through the whole
+> session step by step.
+>
+> This page is here for when something sounds wrong and you want to know what the dials
+> actually do, or when someone asks why the filter chain looks so repetitive.
 
 Everything here was run and measured before it was written down. What I could not do is
 listen to it. The numbers below are real; the judgement of whether it *sounds* right is

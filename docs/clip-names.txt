@@ -1,0 +1,44 @@
+# Clip names for split-takes.ps1, in read order.
+# 41 lines. Must match voice-script.md exactly.
+# Lines starting with # are ignored.
+sup_boot_01
+sup_boot_02
+sup_boot_03
+sup_boot_04
+sup_boot_05
+sup_ack_01
+sup_ack_02
+sup_ack_03
+sup_ack_04
+sup_ack_05
+sup_miss_01
+sup_miss_02
+sup_miss_03
+sup_miss_04
+sup_miss_05
+sup_block_01
+sup_block_02
+sup_block_03
+sup_reset_01
+sup_reset_02
+sup_reset_03
+sup_reset_04
+sup_reset_05
+sup_reset_06
+sup_done_01
+sup_done_02
+sup_done_03
+sup_idle_01
+sup_idle_02
+sup_idle_03
+sup_plain_01
+sup_plain_02
+sup_plain_03
+sup_plain_04
+sup_console_01
+sup_console_02
+sup_console_03
+sup_final_01
+sup_final_02
+sup_final_03
+sup_final_04
