@@ -141,6 +141,12 @@ namespace Dikdik.Producers
 
         private async void OnRecordStop(AudioChunk chunk)
         {
+            // The moment the player stopped talking. Captured here, before whisper runs,
+            // because this is when they finished giving the command. Everything after
+            // this line is us catching up, and the transport delay is measured from the
+            // person rather than from our own processing.
+            var spokenAt = Time.time;
+
             // Restart straight away so we are listening again while whisper thinks.
             // Otherwise the player learns to wait for us, which is backwards.
             if (continuousListening && isActiveAndEnabled)
@@ -174,7 +180,10 @@ namespace Dikdik.Producers
 
                 TranscriptReady?.Invoke(text, stopwatch.ElapsedMilliseconds);
 
-                var intent = FuzzyIntentMatcher.Match(text, CommandSource.Voice);
+                // Stamped with when they stopped speaking, not with now. By this point
+                // whisper has eaten most of the transport budget, so the bus holds this
+                // for whatever is left rather than starting the clock again.
+                var intent = FuzzyIntentMatcher.Match(text, CommandSource.Voice).At(spokenAt);
 
                 // Keep the sound before anything reacts to the meaning. Unrecognised
                 // utterances are kept too: the player still spoke, and a broadcast made
@@ -187,7 +196,7 @@ namespace Dikdik.Producers
                     Channels = chunk.Channels,
                     Transcript = text,
                     Intent = intent.Id,
-                    CapturedAt = Time.time
+                    CapturedAt = spokenAt
                 });
 
                 CommandProduced?.Invoke(intent);

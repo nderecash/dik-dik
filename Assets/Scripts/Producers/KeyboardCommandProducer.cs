@@ -80,8 +80,14 @@ namespace Dikdik.Producers
                 {
                     // RawText is the key name so the "I heard" panel can show
                     // keyboard players the same feedback voice players get.
+                    //
+                    // Stamped with now, which for a key press is genuinely when the
+                    // player finished giving the command. The bus then holds it the
+                    // full transport delay, exactly as long as a spoken command that
+                    // has already spent most of that budget inside whisper. Neither
+                    // route reaches the rover first.
                     CommandProduced?.Invoke(
-                        new Intent(pair.Key, CommandSource.Keyboard, pair.Value.ToString()));
+                        new Intent(pair.Key, CommandSource.Keyboard, pair.Value.ToString(), 1f, Time.time));
                 }
             }
         }

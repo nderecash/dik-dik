@@ -5,31 +5,87 @@ using UnityEngine;
 namespace Dikdik.Commands
 {
     /// <summary>
-    /// The one place player commands arrive, from any producer.
+    /// The one place player commands arrive, from any producer, and the transport that
+    /// carries them to the rover.
     ///
     /// Producers register themselves. Gameplay listens to <see cref="CommandIssued"/>
-    /// and never talks to a producer directly. Adding a third way to play later,
-    /// a gamepad, a switch, an eye tracker, means writing one producer and
-    /// changing nothing else in the game.
+    /// and never talks to a producer directly. Adding a third way to play later, a
+    /// gamepad, a switch, an eye tracker, means writing one producer and changing
+    /// nothing else in the game.
+    ///
+    /// <para><b>Transport delay.</b> Commands are held for <see cref="TransportDelay"/>
+    /// seconds measured from <see cref="Intent.CreatedAt"/>, which is when the player
+    /// finished giving them rather than when we finished understanding them.</para>
+    ///
+    /// <para>This is not decoration and it is not a difficulty setting. Speech takes
+    /// about 1.9 seconds to transcribe and a key press takes none. Without a delay
+    /// measured from the person, the keyboard would beat the voice to the rover every
+    /// single time, and every claim this project makes about neither way of playing
+    /// being privileged would be false in the one place it actually counts. So both
+    /// wait until the same moment. Voice has already spent most of its budget in
+    /// whisper; the keyboard spends all of its waiting.</para>
+    ///
+    /// <para>The fiction is true to it as well: mission control's typed command uplinks
+    /// crossed the same distance at the same speed as the voice loop.</para>
     /// </summary>
     [DefaultExecutionOrder(-100)]
     public class CommandBus : MonoBehaviour
     {
         public static CommandBus Instance { get; private set; }
 
-        /// <summary>Raised for commands we understood.</summary>
+        /// <summary>Raised for commands we understood, after the transport delay.</summary>
         public event Action<Intent> CommandIssued;
 
         /// <summary>
-        /// Raised for input we heard but could not place.
-        /// The feedback panel shows these too. Silence after someone speaks
-        /// reads as being ignored, which is the exact feeling this game is about.
+        /// Raised for input we heard but could not place, after the transport delay.
+        /// The feedback panel shows these too. Silence after someone speaks reads as
+        /// being ignored, which is the exact feeling this game is about.
         /// </summary>
         public event Action<Intent> CommandNotUnderstood;
 
+        /// <summary>
+        /// Raised the instant a command is accepted, before any delay. Feedback uses
+        /// this: the console should confirm it heard you immediately, even though the
+        /// rover cannot possibly have moved yet. Confirming receipt and confirming
+        /// action are different promises and should not be made at the same time.
+        /// </summary>
+        public event Action<Intent> CommandAccepted;
+
+        [Tooltip("Seconds from the player finishing input to the rover acting. " +
+                 "2.6 is round-trip light time to the Moon.")]
+        [SerializeField] private float transportDelay = 2.6f;
+
+        public float TransportDelay
+        {
+            get => transportDelay;
+            set => transportDelay = Mathf.Max(0f, value);
+        }
+
         private readonly List<ICommandProducer> _producers = new List<ICommandProducer>();
+        private readonly List<Intent> _inTransit = new List<Intent>();
 
         public IReadOnlyList<ICommandProducer> Producers => _producers;
+
+        /// <summary>How many commands are currently crossing the gap. Drives the indicator.</summary>
+        public int InTransitCount => _inTransit.Count;
+
+        /// <summary>
+        /// How far along the earliest in-flight command is, 0 to 1. Returns 1 when
+        /// nothing is in transit. The signal indicator reads this instead of a spinner:
+        /// a spinner says the software is struggling, a travelling signal says the Moon
+        /// is a long way away, and only one of those is true.
+        /// </summary>
+        public float TransitProgress
+        {
+            get
+            {
+                if (_inTransit.Count == 0 || transportDelay <= 0f)
+                    return 1f;
+
+                var elapsed = Time.time - _inTransit[0].CreatedAt;
+                return Mathf.Clamp01(elapsed / transportDelay);
+            }
+        }
 
         private void Awake()
         {
@@ -69,7 +125,62 @@ namespace Dikdik.Commands
             producer.CommandProduced -= OnCommandProduced;
         }
 
-        private void OnCommandProduced(Intent intent)
+        /// <summary>
+        /// Restrict what the rover will act on, set by the current level. Null means
+        /// everything is allowed.
+        ///
+        /// A command outside the set is reported as not understood rather than quietly
+        /// dropped. Being ignored and being misunderstood feel identical from the
+        /// player's chair, and only one of them is honest here.
+        /// </summary>
+        public IReadOnlyList<IntentId> AllowedIntents { get; set; }
+
+        /// <summary>
+        /// Always available, whatever the level says. Asking for help, asking the rover
+        /// to repeat itself, or asking to run the sim again are not level content and
+        /// must never be switched off by one.
+        /// </summary>
+        private static readonly IntentId[] AlwaysAllowed =
+        {
+            IntentId.Help, IntentId.Repeat, IntentId.Restart
+        };
+
+        private void OnCommandProduced(Intent produced)
+        {
+            var intent = Permit(produced);
+
+            // Tell the player we have them straight away. The rover cannot move for
+            // another couple of seconds and that is fine, but leaving someone wondering
+            // whether the microphone even works is not.
+            CommandAccepted?.Invoke(intent);
+
+            if (transportDelay <= 0f)
+            {
+                Deliver(intent);
+                return;
+            }
+
+            _inTransit.Add(intent);
+        }
+
+        private void Update()
+        {
+            if (_inTransit.Count == 0)
+                return;
+
+            var now = Time.time;
+
+            // Commands arrive in the order they were sent. A later command cannot
+            // overtake an earlier one just because it was understood faster.
+            while (_inTransit.Count > 0 && now - _inTransit[0].CreatedAt >= transportDelay)
+            {
+                var intent = _inTransit[0];
+                _inTransit.RemoveAt(0);
+                Deliver(intent);
+            }
+        }
+
+        private void Deliver(Intent intent)
         {
             if (intent.IsRecognised)
                 CommandIssued?.Invoke(intent);
@@ -77,13 +188,38 @@ namespace Dikdik.Commands
                 CommandNotUnderstood?.Invoke(intent);
         }
 
+        private Intent Permit(Intent intent)
+        {
+            if (!intent.IsRecognised || AllowedIntents == null)
+                return intent;
+
+            for (var i = 0; i < AlwaysAllowed.Length; i++)
+                if (AlwaysAllowed[i] == intent.Id)
+                    return intent;
+
+            for (var i = 0; i < AllowedIntents.Count; i++)
+                if (AllowedIntents[i] == intent.Id)
+                    return intent;
+
+            // Keep the raw text. The player still said something, and the panel should
+            // show it back to them rather than pretending the room was silent.
+            return Intent.Unrecognised(intent.Source, intent.RawText, intent.CreatedAt);
+        }
+
+        /// <summary>Drop anything still crossing the gap. Used when a level resets.</summary>
+        public void ClearInTransit()
+        {
+            _inTransit.Clear();
+        }
+
         /// <summary>
         /// For cutscenes and tests. Marked <see cref="CommandSource.Script"/> so the
-        /// spike log can tell scripted commands apart from real player input.
+        /// spike log can tell scripted commands apart from real player input, and
+        /// delivered immediately because nothing scripted is crossing any distance.
         /// </summary>
         public void IssueScripted(IntentId id)
         {
-            OnCommandProduced(new Intent(id, CommandSource.Script, id.ToString()));
+            Deliver(new Intent(id, CommandSource.Script, id.ToString(), 1f, Time.time));
         }
     }
 }
