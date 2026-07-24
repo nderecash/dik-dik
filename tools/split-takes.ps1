@@ -48,6 +48,31 @@ $ffmpeg = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
 if (-not $ffmpeg) { throw "ffmpeg not on PATH. Open a NEW terminal after installing it." }
 $ffprobe = (Get-Command ffprobe -ErrorAction SilentlyContinue).Source
 
+# Run ffmpeg through Start-Process, capturing stderr to a file.
+#
+# ffmpeg writes everything, including the silencedetect report, to stderr. PowerShell 5.1
+# wraps a native command's stderr as terminating errors, so calling ffmpeg directly with
+# 2>&1 or 2>file both blow up the moment it prints even a harmless "Guessed Channel Layout"
+# line. Start-Process hands stderr straight to a file without PowerShell touching it, which
+# is the only reliable way to run a chatty native tool from a 5.1 script.
+function Invoke-FFmpeg {
+    param([string[]]$FFArgs)
+
+    $errFile = [System.IO.Path]::GetTempFileName()
+    $outFile = [System.IO.Path]::GetTempFileName()
+    try {
+        $proc = Start-Process -FilePath $ffmpeg -ArgumentList $FFArgs -NoNewWindow -Wait -PassThru `
+            -RedirectStandardError $errFile -RedirectStandardOutput $outFile
+        return [pscustomobject]@{
+            ExitCode = $proc.ExitCode
+            StdErr   = (Get-Content $errFile -ErrorAction SilentlyContinue)
+        }
+    }
+    finally {
+        Remove-Item $errFile, $outFile -Force -ErrorAction SilentlyContinue
+    }
+}
+
 if (-not (Test-Path $Take)) { throw "No such file: $Take" }
 New-Item -ItemType Directory -Path $OutputFolder -Force | Out-Null
 
@@ -57,8 +82,11 @@ Write-Host ("take is {0:0.0} seconds" -f $duration)
 # ---------------------------------------------------------------------------
 # Find the silences
 # ---------------------------------------------------------------------------
-$detect = & $ffmpeg -hide_banner -v info -i $Take `
-    -af "silencedetect=noise=${SilenceDb}dB:d=$SilenceSeconds" -f null NUL 2>&1
+$detect = (Invoke-FFmpeg @(
+    '-hide_banner', '-v', 'info', '-i', $Take,
+    '-af', "silencedetect=noise=${SilenceDb}dB:d=$SilenceSeconds",
+    '-f', 'null', 'NUL'
+)).StdErr
 
 $starts = @()
 $ends = @()
@@ -121,7 +149,16 @@ for ($i = 0; $i -lt $segments.Count; $i++) {
     $name = if ($names.Count -gt $i) { $names[$i].Trim() } else { "clip_{0:D3}" -f ($i + 1) }
     $out = Join-Path $OutputFolder "$name.wav"
 
-    & $ffmpeg -y -v error -ss $from -t $length -i $Take -ac 1 -ar 44100 $out
+    $cut = Invoke-FFmpeg @(
+        '-y', '-v', 'error', '-ss', "$from", '-t', "$length",
+        '-i', $Take, '-ac', '1', '-ar', '44100', $out
+    )
+
+    if ($cut.ExitCode -ne 0) {
+        Write-Warning "failed to cut $name.wav: $($cut.StdErr -join ' ')"
+        continue
+    }
+
     Write-Host ("{0,-22} {1,6:0.0}s" -f "$name.wav", ($segment.End - $segment.Start))
 }
 
