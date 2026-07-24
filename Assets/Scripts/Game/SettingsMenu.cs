@@ -39,7 +39,8 @@ namespace Dikdik.Game
         private static readonly (string Scene, string Label)[] Levels =
         {
             ("Level01", "1  Dust corridor"),
-            ("Level03", "3  Night side")
+            ("Level03", "3  Night side"),
+            ("Level05", "5  The slope")
         };
 
         [SerializeField] private KeyCode openKey = KeyCode.Escape;

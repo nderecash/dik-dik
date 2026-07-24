@@ -28,6 +28,16 @@ namespace Dikdik.Game
         [Tooltip("Degrees per Left or Right command")]
         [SerializeField] private float turnStep = 90f;
 
+        [Header("Momentum (opt-in, off by default)")]
+        [Tooltip("Units per second squared while speeding up. 0 means instant, which is " +
+                 "how the rover behaves everywhere except the slope level.")]
+        [SerializeField] private float acceleration = 0f;
+
+        [Tooltip("Units per second squared while slowing down. 0 means instant. A low " +
+                 "value here is the whole slope level: the rover coasts after you say " +
+                 "stop, so you overshoot, and the game-speed setting is what shrinks it.")]
+        [SerializeField] private float deceleration = 0f;
+
         [Header("Collision")]
         [Tooltip("How far ahead to look for walls")]
         [SerializeField] private float probeDistance = 0.6f;
@@ -48,8 +58,12 @@ namespace Dikdik.Game
         /// <summary>True while stopped at a junction, waiting to be told which way.</summary>
         public bool IsWaitingAtJunction { get; private set; }
 
+        /// <summary>Signed speed along forward, in units per second. Zero when at rest.</summary>
+        public float CurrentSpeed => _currentSpeed;
+
         private float _targetYaw;
-        private int _direction;   // 1 forward, -1 back, 0 still
+        private int _direction;   // target: 1 forward, -1 back, 0 still
+        private float _currentSpeed;
         private bool _resumeAfterTurn;
 
         private void Awake()
@@ -140,14 +154,17 @@ namespace Dikdik.Game
 
         private void Update()
         {
-            // One multiplier, applied to everything the rover does. At 0.25 the whole
-            // game waits for you, which is the point of the setting.
-            var speedScale = GameSettings.GameSpeed;
-            var delta = Time.deltaTime;
+            // The rover lives in game time, which is real time scaled by the speed
+            // setting. Everything it does uses this one delta, so turning, accelerating,
+            // coasting and moving all slow together. The transport delay in CommandBus
+            // is deliberately NOT scaled: it is 2.6 real seconds whatever the setting.
+            // That is why slowing the game shrinks the overshoot on the slope, because
+            // the rover covers less ground during those fixed 2.6 seconds.
+            var gdelta = Time.deltaTime * GameSettings.GameSpeed;
 
-            TurnTowardTarget(delta, speedScale);
+            TurnTowardTarget(gdelta);
             ResumeIfTurnFinished();
-            MoveIfAsked(delta, speedScale);
+            UpdateMovement(gdelta);
         }
 
         private void ResumeIfTurnFinished()
@@ -163,31 +180,48 @@ namespace Dikdik.Game
             SetDirection(1);
         }
 
-        private void TurnTowardTarget(float delta, float speedScale)
+        private void TurnTowardTarget(float gdelta)
         {
             var current = transform.eulerAngles.y;
-            var next = Mathf.MoveTowardsAngle(current, _targetYaw, turnSpeed * speedScale * delta);
+            var next = Mathf.MoveTowardsAngle(current, _targetYaw, turnSpeed * gdelta);
             transform.rotation = Quaternion.Euler(0f, next, 0f);
         }
 
-        private void MoveIfAsked(float delta, float speedScale)
+        private void UpdateMovement(float gdelta)
         {
-            if (_direction == 0)
-                return;
+            // Ease the actual speed toward the asked-for speed. When acceleration and
+            // deceleration are zero, which is the default, this snaps and the rover
+            // starts and stops on a dime exactly as before. When they are set, as on the
+            // slope, the rover takes time to reach speed and, more to the point, time to
+            // shed it, so a late "stop" carries you past the mark.
+            var target = _direction * moveSpeed;
+            var rate = Mathf.Abs(target) < Mathf.Abs(_currentSpeed) ? deceleration : acceleration;
 
-            var step = transform.forward * _direction;
+            _currentSpeed = rate <= 0f
+                ? target
+                : Mathf.MoveTowards(_currentSpeed, target, rate * gdelta);
 
-            if (Physics.Raycast(transform.position, step, probeDistance, obstacleMask))
+            if (Mathf.Abs(_currentSpeed) > 0.001f)
             {
-                // Stop rather than grind against the wall, and say so. Silent failure
-                // is indistinguishable from not being heard, which is the one feeling
-                // this game must never produce by accident.
-                SetDirection(0);
-                Blocked?.Invoke();
-                return;
+                // Probe in the direction we are actually moving, which after a "stop"
+                // on a slope is still forward even though the asked-for direction is nil.
+                var sign = Mathf.Sign(_currentSpeed);
+
+                if (Physics.Raycast(transform.position, transform.forward * sign, probeDistance, obstacleMask))
+                {
+                    // Hit something. Come to rest against it rather than grinding, and
+                    // say so: silent failure is indistinguishable from not being heard.
+                    _currentSpeed = 0f;
+                    _direction = 0;
+                    Blocked?.Invoke();
+                }
+                else
+                {
+                    transform.position += transform.forward * (_currentSpeed * gdelta);
+                }
             }
 
-            transform.position += step * (moveSpeed * speedScale * delta);
+            UpdateMovingFlag();
         }
 
         private void SetDirection(int direction)
@@ -196,8 +230,11 @@ namespace Dikdik.Game
 
             if (direction != 0)
                 IsWaitingAtJunction = false;
+        }
 
-            var moving = direction != 0;
+        private void UpdateMovingFlag()
+        {
+            var moving = Mathf.Abs(_currentSpeed) > 0.01f;
             if (moving == IsMoving)
                 return;
 
@@ -208,10 +245,12 @@ namespace Dikdik.Game
         /// <summary>Put the rover back where a level started. Used by level reset.</summary>
         public void ResetTo(Vector3 position, float yaw)
         {
-            SetDirection(0);
+            _direction = 0;
+            _currentSpeed = 0f;
             transform.position = position;
             transform.rotation = Quaternion.Euler(0f, yaw, 0f);
             _targetYaw = yaw;
+            UpdateMovingFlag();
         }
 
         private void OnDrawGizmosSelected()
