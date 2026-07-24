@@ -118,9 +118,9 @@ public static class Level04SceneBuilder
         var cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";
         var camera = cameraObject.AddComponent<Camera>();
-        camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color(0.72f, 0.76f, 0.82f);
+        camera.clearFlags = CameraClearFlags.Skybox;
         camera.fieldOfView = 56f;
+        camera.farClipPlane = 400f;
         cameraObject.AddComponent<AudioListener>();
 
         var follow = cameraObject.AddComponent<CameraFollow>();
@@ -128,9 +128,10 @@ public static class Level04SceneBuilder
         SetRef(followSerialized, "target", rover.transform);
         followSerialized.ApplyModifiedPropertiesWithoutUndo();
 
-        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.06f, 0.07f, 0.09f);
-        RenderSettings.skybox = null;
+        Environment.ApplyLighting("dusk", new Color(0.62f, 0.6f, 0.62f), new Color(0.04f, 0.05f, 0.11f));
+        Environment.BuildHorizon(new Vector3(0f, 0f, RunEnd * 0.5f), 130f, 4);
+        Environment.ScatterRocks(new Vector3(0f, 0f, RunEnd * 0.5f),
+                                 40f, RunEnd * 0.6f + 20f, HalfWidth + 2f, 50, 4);
 
         // Director settings.
         var directorSerialized = new SerializedObject(director);
@@ -174,6 +175,8 @@ public static class Level04SceneBuilder
         body.transform.localScale = new Vector3(1.1f, 0.6f, 1.6f);
         body.GetComponent<Renderer>().sharedMaterial = wallMaterial;
         Object.DestroyImmediate(body.GetComponent<Collider>());
+
+        Environment.BuildRoverDetail(rover.transform, wallMaterial);
 
         var shell = GameObject.CreatePrimitive(PrimitiveType.Cube);
         shell.name = "Shell Light";

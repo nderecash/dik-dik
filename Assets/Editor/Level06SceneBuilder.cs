@@ -116,22 +116,21 @@ public static class Level06SceneBuilder
         var cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";
         var camera = cameraObject.AddComponent<Camera>();
-        camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color(0.10f, 0.12f, 0.18f);   // dusk over the plain
+        camera.clearFlags = CameraClearFlags.Skybox;
         camera.fieldOfView = 60f;
-        camera.farClipPlane = 300f;
+        camera.farClipPlane = 400f;
         cameraObject.AddComponent<AudioListener>();
 
         var follow = cameraObject.AddComponent<CameraFollow>();
         var followSerialized = new SerializedObject(follow);
         SetRef(followSerialized, "target", rover.transform);
-        followSerialized.FindProperty("offset").vector3Value = new Vector3(0f, 14f, -13f);
-        followSerialized.FindProperty("lookAhead").floatValue = 12f;
         followSerialized.ApplyModifiedPropertiesWithoutUndo();
 
-        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.05f, 0.06f, 0.09f);
-        RenderSettings.skybox = null;
+        // Dusk over the plain. A low sun so the dormant field beyond the rim reads as
+        // shapes on lit ground, and the field itself is the horizon interest, so no ridge
+        // ring here. The waking lights do the rest.
+        Environment.ApplyLighting("dusk", new Color(0.62f, 0.6f, 0.62f), new Color(0.04f, 0.05f, 0.11f),
+                                  sunIntensity: 0.7f);
 
         // Director settings.
         var directorSerialized = new SerializedObject(director);
@@ -175,6 +174,8 @@ public static class Level06SceneBuilder
         body.transform.localScale = new Vector3(1.1f, 0.6f, 1.6f);
         body.GetComponent<Renderer>().sharedMaterial = bodyMaterial;
         Object.DestroyImmediate(body.GetComponent<Collider>());
+
+        Environment.BuildRoverDetail(rover.transform, bodyMaterial);
 
         var shell = GameObject.CreatePrimitive(PrimitiveType.Cube);
         shell.name = "Shell Light";

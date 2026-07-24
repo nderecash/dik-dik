@@ -18,16 +18,16 @@ namespace Dikdik.Game
         [SerializeField] private Transform target;
 
         [Header("Framing")]
-        [Tooltip("Offset in the rover's local space: behind and above. High enough to " +
-                 "see over the corridor walls, because the first playtest spent half " +
-                 "of every turn looking at a wall face.")]
-        [SerializeField] private Vector3 offset = new Vector3(0f, 12f, -12f);
+        [Tooltip("Offset in the rover's local space: behind and a little above. Low " +
+                 "enough that the bright horizon sits behind the rover, which is what " +
+                 "the silhouette look needs, high enough to still see over the walls.")]
+        [SerializeField] private Vector3 offset = new Vector3(0f, 6.5f, -12f);
 
-        [Tooltip("Look well ahead of the rover, not at it. Down the corridor rather " +
-                 "than at the thing in front of the camera.")]
-        [SerializeField] private float lookAhead = 7f;
+        [Tooltip("Look well ahead of the rover and up a touch, out toward the horizon " +
+                 "rather than down at the ground right in front.")]
+        [SerializeField] private float lookAhead = 18f;
 
-        [SerializeField] private float lookHeight = 0.5f;
+        [SerializeField] private float lookHeight = 3.5f;
 
         [Header("Lag")]
         [Tooltip("Lower is lazier. This is the drift that makes the signal delay visible.")]

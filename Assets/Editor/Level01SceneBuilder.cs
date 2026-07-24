@@ -124,9 +124,14 @@ public static class Level01SceneBuilder
         var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
         body.name = "Body";
         body.transform.SetParent(rover.transform, false);
-        body.transform.localScale = new Vector3(1.1f, 0.6f, 1.6f);
+        body.transform.localScale = new Vector3(1.1f, 0.5f, 1.6f);
         body.GetComponent<Renderer>().sharedMaterial = wallMaterial;
         Object.DestroyImmediate(body.GetComponent<Collider>());
+
+        // Wheels, mast and dish, all black so the rover reads as a proper silhouette
+        // shape against the sky rather than a plain box. None of them are lit; they are
+        // there to be recognised, not seen in detail.
+        Environment.BuildRoverDetail(rover.transform, wallMaterial);
 
         // The only lit part of the rover. In a silhouette world this is how you see it
         // at all, which makes light the machine's single means of expression.
@@ -253,9 +258,9 @@ public static class Level01SceneBuilder
         var cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";
         var camera = cameraObject.AddComponent<Camera>();
-        camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color(0.72f, 0.76f, 0.82f);
+        camera.clearFlags = CameraClearFlags.Skybox;
         camera.fieldOfView = 55f;
+        camera.farClipPlane = 400f;   // reach the horizon ridge
         cameraObject.AddComponent<AudioListener>();
 
         var follow = cameraObject.AddComponent<CameraFollow>();
@@ -263,9 +268,12 @@ public static class Level01SceneBuilder
         SetRef(followSerialized, "target", rover.transform);
         followSerialized.ApplyModifiedPropertiesWithoutUndo();
 
-        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.06f, 0.07f, 0.09f);
-        RenderSettings.skybox = null;
+        // Sky, sun, ambient, then the distant ridge line and scattered rocks. The dusty
+        // horizon is what the silhouette style needs behind its black shapes.
+        Environment.ApplyLighting("dusk", new Color(0.62f, 0.6f, 0.62f), new Color(0.04f, 0.05f, 0.11f));
+        Environment.BuildHorizon(new Vector3(0f, 0f, bounds.center.z), 120f, 1);
+        Environment.ScatterRocks(new Vector3(0f, 0f, bounds.center.z),
+                                 40f, bounds.size.z * 0.7f + 20f, CorridorHalfWidth + 2f, 60, 1);
 
         // ------------------------------------------------------------------
         // Level plumbing

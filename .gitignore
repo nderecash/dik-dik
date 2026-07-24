@@ -117,3 +117,6 @@ Builds/
 # Voice recording working files. Raw takes and intermediate clips.
 # Finished game audio lives in Assets/Audio and IS committed.
 /audio/
+
+# Dev screenshots from Screenshotter
+/shot*.png

@@ -203,13 +203,9 @@ public static class Level03SceneBuilder
         var cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";
         var camera = cameraObject.AddComponent<Camera>();
-        camera.clearFlags = CameraClearFlags.SolidColor;
-
-        // Not black. Very slightly lighter than the walls, so a silhouette technically
-        // exists and is simply too faint to navigate by. Black would be unfair; this is
-        // merely difficult, which is the honest version.
-        camera.backgroundColor = new Color(0.045f, 0.05f, 0.07f);
+        camera.clearFlags = CameraClearFlags.Skybox;
         camera.fieldOfView = 55f;
+        camera.farClipPlane = 400f;
         cameraObject.AddComponent<AudioListener>();
 
         var follow = cameraObject.AddComponent<CameraFollow>();
@@ -217,9 +213,14 @@ public static class Level03SceneBuilder
         SetRef(followSerialized, "target", rover.transform);
         followSerialized.ApplyModifiedPropertiesWithoutUndo();
 
-        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.012f, 0.014f, 0.02f);
-        RenderSettings.skybox = null;
+        // The night side. Its own dark sky, a sky full of stars, and the sun turned almost
+        // all the way down: the ground has to stay too dark to see the crevasses on,
+        // because that is the whole level. High contrast is what puts their edges back.
+        // A faint ridge on the horizon for depth, and no scattered rocks, which would
+        // only be invisible clutter here.
+        Environment.ApplyLighting("night", new Color(0.07f, 0.08f, 0.12f),
+                                  new Color(0.01f, 0.014f, 0.03f), sunIntensity: 0.02f);
+        Environment.BuildHorizon(new Vector3(0f, 0f, 36f), 120f, 3);
 
         // ------------------------------------------------------------------
         // Director
@@ -266,6 +267,8 @@ public static class Level03SceneBuilder
         body.transform.localScale = new Vector3(1.1f, 0.6f, 1.6f);
         body.GetComponent<Renderer>().sharedMaterial = wallMaterial;
         Object.DestroyImmediate(body.GetComponent<Collider>());
+
+        Environment.BuildRoverDetail(rover.transform, wallMaterial);
 
         var shell = GameObject.CreatePrimitive(PrimitiveType.Cube);
         shell.name = "Shell Light";
