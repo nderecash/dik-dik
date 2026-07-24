@@ -42,7 +42,8 @@ namespace Dikdik.Game
             ("Level01", "1  Dust corridor"),
             ("Level03", "3  Night side"),
             ("Level04", "4  The jammed key"),
-            ("Level05", "5  The slope")
+            ("Level05", "5  The slope"),
+            ("Level06", "6  The crater rim")
         };
 
         [SerializeField] private KeyCode openKey = KeyCode.Escape;

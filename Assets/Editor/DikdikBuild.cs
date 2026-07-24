@@ -134,7 +134,8 @@ public static class DikdikBuild
         "Assets/Scenes/Level01.unity",
         "Assets/Scenes/Level03.unity",
         "Assets/Scenes/Level04.unity",
-        "Assets/Scenes/Level05.unity"
+        "Assets/Scenes/Level05.unity",
+        "Assets/Scenes/Level06.unity"
     };
 
     private static string[] Scenes()

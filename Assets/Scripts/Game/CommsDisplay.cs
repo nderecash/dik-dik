@@ -126,6 +126,34 @@ namespace Dikdik.Game
             _clearAt = briefing ? 0f : Time.time + ReadingTime(line);
         }
 
+        private static readonly Color BroadcastTint = new Color(1f, 0.92f, 0.6f);
+
+        /// <summary>
+        /// The player's own words going out on the open loop, at the end.
+        ///
+        /// Labelled OPEN LOOP rather than CONTROL or SALTY, because this is neither of
+        /// them speaking. It is the player, played back. Held until the next line
+        /// replaces it; the broadcast drives the timing.
+        /// </summary>
+        public void ShowBroadcastLine(string line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                return;
+
+            ShowSpeaker("OPEN LOOP", BroadcastTint);
+
+            if (heardText != null)
+            {
+                heardText.text = line;
+                heardText.color = GameSettings.HighContrast ? Color.white : new Color(1f, 0.95f, 0.8f);
+            }
+
+            if (statusText != null)
+                statusText.text = string.Empty;
+
+            _clearAt = 0f;
+        }
+
         /// <summary>Hide the speaker badge and return to rest. Called when the briefing ends.</summary>
         public void ClearSupervisor()
         {
