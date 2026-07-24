@@ -172,7 +172,8 @@ public static class BootSceneBuilder
         heardRect.anchorMin = new Vector2(0f, 0f);
         heardRect.anchorMax = new Vector2(1f, 1f);
         heardRect.offsetMin = new Vector2(28f, 74f);
-        heardRect.offsetMax = new Vector2(-28f, -20f);
+        // Leave room at the top for the speaker badge.
+        heardRect.offsetMax = new Vector2(-28f, -52f);
 
         var status = NewText("Status", panel.transform, 18, TextAnchor.LowerLeft);
         var statusRect = status.GetComponent<RectTransform>();
@@ -199,12 +200,48 @@ public static class BootSceneBuilder
         barImage.fillAmount = 0f;
         barImage.raycastTarget = false;
 
+        // Speaker badge: a small person icon and a name, shown only when someone is
+        // speaking TO the player. Sits at the top-left of the panel, above the text.
+        // Built from two built-in UI sprites so it needs no art: a circle for the head
+        // and a rounded rectangle for the shoulders.
+        var circle = Resources.GetBuiltinResource<Sprite>("UI/Skin/Knob.psd");
+        var rounded = Resources.GetBuiltinResource<Sprite>("UI/Skin/Background.psd");
+
+        var badge = NewUiObject("Speaker Badge", panel.transform);
+        var badgeRect = badge.GetComponent<RectTransform>();
+        badgeRect.anchorMin = new Vector2(0f, 1f);
+        badgeRect.anchorMax = new Vector2(0f, 1f);
+        badgeRect.pivot = new Vector2(0f, 1f);
+        badgeRect.anchoredPosition = new Vector2(28f, -12f);
+        badgeRect.sizeDelta = new Vector2(300f, 32f);
+
+        var head = MakeIcon("Head", badge.transform, circle, new Vector2(16f, 16f),
+                            new Vector2(8f, -3f));
+        var body = MakeIcon("Body", badge.transform, rounded, new Vector2(22f, 14f),
+                            new Vector2(5f, -17f));
+
+        var speakerName = NewText("Speaker Name", badge.transform, 17, TextAnchor.MiddleLeft);
+        speakerName.fontStyle = FontStyle.Bold;
+        var nameRect = speakerName.GetComponent<RectTransform>();
+        nameRect.anchorMin = new Vector2(0f, 1f);
+        nameRect.anchorMax = new Vector2(0f, 1f);
+        nameRect.pivot = new Vector2(0f, 1f);
+        nameRect.anchoredPosition = new Vector2(38f, -2f);
+        nameRect.sizeDelta = new Vector2(240f, 30f);
+
+        // Hidden until someone actually speaks.
+        badge.SetActive(false);
+
         var comms = canvasObject.AddComponent<CommsDisplay>();
         var commsSerialized = new SerializedObject(comms);
         SetRef(commsSerialized, "heardText", heard);
         SetRef(commsSerialized, "statusText", status);
         SetRef(commsSerialized, "background", background);
         SetRef(commsSerialized, "signalBar", barImage);
+        SetRef(commsSerialized, "speakerBadge", badge);
+        SetRef(commsSerialized, "speakerName", speakerName);
+        SetRef(commsSerialized, "speakerIconHead", head);
+        SetRef(commsSerialized, "speakerIconBody", body);
         commsSerialized.ApplyModifiedPropertiesWithoutUndo();
 
         return comms;
@@ -215,6 +252,27 @@ public static class BootSceneBuilder
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
         return go;
+    }
+
+    /// <summary>A small UI icon from a built-in sprite, top-left anchored inside its parent.</summary>
+    private static Image MakeIcon(string name, Transform parent, Sprite sprite,
+                                  Vector2 size, Vector2 position)
+    {
+        var go = NewUiObject(name, parent);
+        var rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+
+        var image = go.AddComponent<Image>();
+        image.sprite = sprite;
+        image.type = Image.Type.Simple;
+        image.color = new Color(0.62f, 0.78f, 1f);
+        image.raycastTarget = false;
+
+        return image;
     }
 
     private static Text NewText(string name, Transform parent, int size, TextAnchor anchor)

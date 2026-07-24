@@ -43,6 +43,23 @@ namespace Dikdik.Game
         private float _idleAt;
         private bool _bootPlayed;
         private bool _ackThisLevel;
+        private bool _briefing;
+
+        /// <summary>
+        /// While Control is speaking, the game stops listening.
+        ///
+        /// Two reasons. The microphone hears the game's own voice through the speakers
+        /// and would transcribe Control talking to itself, and a player who starts giving
+        /// commands over the briefing turns the whole thing to noise. So the voice
+        /// producer checks this and drops anything captured while it is set. Extended a
+        /// little past each clip so the tail does not leak in.
+        /// </summary>
+        private static float _listenBlockedUntil;
+
+        public static bool IsListeningBlocked => Time.time < _listenBlockedUntil;
+
+        /// <summary>True while the opening briefing is running. It can be skipped.</summary>
+        public bool IsBriefing => _briefing;
 
         // Per-level components, re-found on each scene load.
         private RoverController _rover;
@@ -198,6 +215,17 @@ namespace Dikdik.Game
 
         private void Update()
         {
+            // The briefing can be skipped. Someone who has heard it, or a returning
+            // player, should not have to sit through it to start.
+            if (_briefing)
+            {
+                if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) ||
+                    Input.GetKeyDown(KeyCode.Escape))
+                    SkipBriefing();
+
+                return;
+            }
+
             if (Time.time < _idleAt)
                 return;
 
@@ -237,6 +265,7 @@ namespace Dikdik.Game
                 return;
 
             StopAllCoroutines();
+            _briefing = true;
             StartCoroutine(PlayAll(list));
         }
 
@@ -244,6 +273,9 @@ namespace Dikdik.Game
         {
             foreach (var clip in list)
             {
+                if (!_briefing)
+                    yield break;
+
                 Play(clip);
 
                 // Wait out the clip plus a breath, unscaled so a slowed game does not
@@ -251,8 +283,34 @@ namespace Dikdik.Game
                 var wait = clip.length + 0.4f;
                 var until = Time.realtimeSinceStartup + wait;
                 while (Time.realtimeSinceStartup < until)
+                {
+                    if (!_briefing)
+                        yield break;
+
                     yield return null;
+                }
             }
+
+            EndBriefing();
+        }
+
+        private void SkipBriefing()
+        {
+            StopAllCoroutines();
+            if (source != null)
+                source.Stop();
+
+            EndBriefing();
+        }
+
+        private void EndBriefing()
+        {
+            _briefing = false;
+            _listenBlockedUntil = 0f;
+            _idleAt = Time.time + idleAfter;
+
+            if (comms != null)
+                comms.ClearSupervisor();
         }
 
         private AudioClip Next(string group)
@@ -271,8 +329,12 @@ namespace Dikdik.Game
             if (source != null)
                 source.PlayOneShot(clip);
 
+            // Stop listening for the length of the clip plus a tail, so the game does not
+            // transcribe its own voice coming back through the microphone.
+            _listenBlockedUntil = Mathf.Max(_listenBlockedUntil, Time.time + clip.length + 0.6f);
+
             if (comms != null)
-                comms.ShowSupervisorLine(VoiceLines.Caption(clip.name));
+                comms.ShowSupervisorLine(VoiceLines.Caption(clip.name), _briefing);
         }
     }
 }

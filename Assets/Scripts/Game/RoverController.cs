@@ -207,7 +207,12 @@ namespace Dikdik.Game
                 // on a slope is still forward even though the asked-for direction is nil.
                 var sign = Mathf.Sign(_currentSpeed);
 
-                if (Physics.Raycast(transform.position, transform.forward * sign, probeDistance, obstacleMask))
+                // Ignore triggers. Stop pads, junctions and exits are all trigger volumes
+                // the rover is meant to roll through; only solid walls block it. Without
+                // this, Unity's raycast hits the pad's trigger and the rover treats a
+                // checkpoint as a wall, which is exactly what the slope playtest hit.
+                if (Physics.Raycast(transform.position, transform.forward * sign, probeDistance,
+                                    obstacleMask, QueryTriggerInteraction.Ignore))
                 {
                     // Hit something. Come to rest against it rather than grinding, and
                     // say so: silent failure is indistinguishable from not being heard.

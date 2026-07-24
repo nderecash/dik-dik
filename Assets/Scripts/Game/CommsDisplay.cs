@@ -32,6 +32,16 @@ namespace Dikdik.Game
         [SerializeField] private Text statusText;
         [SerializeField] private Image background;
 
+        [Header("Speaker badge")]
+        [Tooltip("Shown only when someone is speaking TO the player: Control, or Salty " +
+                 "asking a question. Hidden when the panel is just echoing the player's " +
+                 "own words, so a supervisor line never reads as the game awaiting input.")]
+        [SerializeField] private GameObject speakerBadge;
+
+        [SerializeField] private Text speakerName;
+        [SerializeField] private Image speakerIconHead;
+        [SerializeField] private Image speakerIconBody;
+
         [Tooltip("Fills as the command crosses the gap. Image type must be Filled.")]
         [SerializeField] private Image signalBar;
 
@@ -87,24 +97,68 @@ namespace Dikdik.Game
         /// degraded on purpose and the words live here. This is "subtitles for all speech"
         /// meant literally.
         /// </summary>
-        public void ShowSupervisorLine(string line)
+        private static readonly Color SupervisorTint = new Color(0.62f, 0.78f, 1f);
+        private static readonly Color RoverTint = new Color(0.6f, 1f, 0.75f);
+
+        public void ShowSupervisorLine(string line, bool briefing = false)
         {
             if (string.IsNullOrWhiteSpace(line))
                 return;
 
+            ShowSpeaker("CONTROL", SupervisorTint);
+
             if (heardText != null)
             {
-                heardText.text = $"Control: {line}";
-                heardText.color = GameSettings.HighContrast ? Color.white : new Color(0.8f, 0.86f, 1f);
+                heardText.text = line;
+                heardText.color = GameSettings.HighContrast ? Color.white : new Color(0.85f, 0.9f, 1f);
             }
 
             if (statusText != null)
-                statusText.text = string.Empty;
+            {
+                // During the briefing, tell the player it is a briefing and that they can
+                // skip it, rather than leaving them wondering whether to start talking.
+                statusText.text = briefing ? "Briefing.  Press Space to skip." : string.Empty;
+                statusText.color = GameSettings.HighContrast ? Color.white : SupervisorTint;
+            }
 
-            // Rough reading time: a beat plus a bit per word. Long lines linger, short ones
-            // do not overstay.
+            // A briefing line holds until the next one replaces it; the sequence drives
+            // the timing. A one-off line clears on its own reading clock.
+            _clearAt = briefing ? 0f : Time.time + ReadingTime(line);
+        }
+
+        /// <summary>Hide the speaker badge and return to rest. Called when the briefing ends.</summary>
+        public void ClearSupervisor()
+        {
+            _clearAt = 0f;
+            ShowResting();
+        }
+
+        private void ShowSpeaker(string who, Color tint)
+        {
+            if (speakerBadge != null)
+                speakerBadge.SetActive(true);
+
+            if (speakerName != null)
+            {
+                speakerName.text = who;
+                speakerName.color = GameSettings.HighContrast ? Color.white : tint;
+            }
+
+            var iconColour = GameSettings.HighContrast ? Color.white : tint;
+            if (speakerIconHead != null) speakerIconHead.color = iconColour;
+            if (speakerIconBody != null) speakerIconBody.color = iconColour;
+        }
+
+        private void HideSpeaker()
+        {
+            if (speakerBadge != null)
+                speakerBadge.SetActive(false);
+        }
+
+        private static float ReadingTime(string line)
+        {
             var words = line.Split(' ').Length;
-            _clearAt = Time.time + Mathf.Clamp(1.5f + words * 0.35f, 2.5f, 8f);
+            return Mathf.Clamp(1.5f + words * 0.35f, 2.5f, 8f);
         }
 
         /// <summary>
@@ -115,13 +169,18 @@ namespace Dikdik.Game
         /// </summary>
         public void ShowRoverQuestion(string question)
         {
+            ShowSpeaker("SALTY", RoverTint);
+
             if (heardText != null)
+            {
                 heardText.text = question;
+                heardText.color = GameSettings.HighContrast ? Color.white : new Color(0.85f, 1f, 0.9f);
+            }
 
             if (statusText != null)
             {
                 statusText.text = GameSettings.Subtitles ? "Salty is waiting." : string.Empty;
-                statusText.color = GameSettings.HighContrast ? Color.white : transitColour;
+                statusText.color = GameSettings.HighContrast ? Color.white : RoverTint;
             }
 
             _clearAt = 0f;
@@ -172,8 +231,15 @@ namespace Dikdik.Game
 
         private void Show(string heard, string status, Color tint)
         {
+            // This is the console echoing the player's own words back, not a person
+            // speaking to them, so no speaker badge.
+            HideSpeaker();
+
             if (heardText != null)
+            {
                 heardText.text = heard;
+                heardText.color = GameSettings.HighContrast ? Color.white : new Color(0.92f, 0.94f, 0.96f);
+            }
 
             if (statusText != null)
             {
@@ -184,6 +250,8 @@ namespace Dikdik.Game
 
         private void ShowResting()
         {
+            HideSpeaker();
+
             if (heardText != null)
             {
                 heardText.text = _listening ? "Listening." : "Say something to the rover.";

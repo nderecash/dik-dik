@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using Dikdik.Commands;
+using Dikdik.Game;
 using Dikdik.Matching;
 using UnityEngine;
 using Whisper;
@@ -151,6 +152,13 @@ namespace Dikdik.Producers
             // Otherwise the player learns to wait for us, which is backwards.
             if (continuousListening && isActiveAndEnabled)
                 StartListening();
+
+            // Drop anything captured while Control was speaking. It is most likely the
+            // game's own voice arriving back through the microphone, or the player
+            // talking over the briefing. Transcribing it would be the game hearing
+            // itself, which is where the chaos came from.
+            if (SupervisorVoice.IsListeningBlocked)
+                return;
 
             if (_busy)
                 return;
