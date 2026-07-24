@@ -39,7 +39,7 @@ param(
     [Parameter()][string]$NamesFile,
     [Parameter()][double]$SilenceDb = -38,
     [Parameter()][double]$SilenceSeconds = 1.0,
-    [Parameter()][double]$MinimumClipSeconds = 0.4,
+    [Parameter()][double]$MinimumClipSeconds = 0.25,
 
     [Parameter()][double]$PadSeconds = 0.4
 )
