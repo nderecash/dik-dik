@@ -37,9 +37,11 @@ param(
     [Parameter(Mandatory = $true)][string]$Take,
     [Parameter(Mandatory = $true)][string]$OutputFolder,
     [Parameter()][string]$NamesFile,
-    [Parameter()][double]$SilenceDb = -35,
-    [Parameter()][double]$SilenceSeconds = 1.2,
-    [Parameter()][double]$MinimumClipSeconds = 0.4
+    [Parameter()][double]$SilenceDb = -38,
+    [Parameter()][double]$SilenceSeconds = 1.0,
+    [Parameter()][double]$MinimumClipSeconds = 0.4,
+
+    [Parameter()][double]$PadSeconds = 0.4
 )
 
 $ErrorActionPreference = 'Stop'
@@ -99,21 +101,47 @@ foreach ($line in $detect) {
 Write-Host "found $($starts.Count) silences"
 
 # ---------------------------------------------------------------------------
-# Speech is whatever is left over
+# Speech is whatever is between the silences. Each cut extends a fixed amount
+# into the silence on either side, but never past the middle of it.
+#
+# This is what stops words being clipped without leaving a wall of dead air. A
+# boundary hard against the speech clips any soft tail that dropped below the
+# threshold early; a boundary in the exact centre of a three-second gap buries
+# the word in silence. Going PadSeconds into the gap, capped at the midpoint,
+# gives a clean margin regardless of how long the recorded pauses are.
 # ---------------------------------------------------------------------------
-$segments = @()
-$cursor = 0.0
-
-for ($i = 0; $i -lt $starts.Count; $i++) {
-    $segmentEnd = $starts[$i]
-    if (($segmentEnd - $cursor) -ge $MinimumClipSeconds) {
-        $segments += [pscustomobject]@{ Start = $cursor; End = $segmentEnd }
-    }
-    if ($i -lt $ends.Count) { $cursor = $ends[$i] }
+$silences = @()
+for ($i = 0; $i -lt [math]::Min($starts.Count, $ends.Count); $i++) {
+    $silences += [pscustomobject]@{ Start = $starts[$i]; End = $ends[$i] }
 }
 
-if (($duration - $cursor) -ge $MinimumClipSeconds) {
-    $segments += [pscustomobject]@{ Start = $cursor; End = $duration }
+$segments = @()
+$speechStart = 0.0
+
+for ($i = 0; $i -le $silences.Count; $i++) {
+    $speechEnd = if ($i -lt $silences.Count) { $silences[$i].Start } else { $duration }
+
+    if (($speechEnd - $speechStart) -ge $MinimumClipSeconds) {
+        # Reach back PadSeconds into the previous silence, but not past its midpoint,
+        # so two clips can never overlap however small the gap. Same forward.
+        $cutStart = if ($i -gt 0) {
+            $mid = ($silences[$i - 1].Start + $silences[$i - 1].End) / 2
+            [math]::Max($mid, $speechStart - $PadSeconds)
+        } else {
+            [math]::Max(0, $speechStart - $PadSeconds)
+        }
+
+        $cutEnd = if ($i -lt $silences.Count) {
+            $mid = ($silences[$i].Start + $silences[$i].End) / 2
+            [math]::Min($mid, $speechEnd + $PadSeconds)
+        } else {
+            [math]::Min($duration, $speechEnd + $PadSeconds)
+        }
+
+        $segments += [pscustomobject]@{ Start = $cutStart; End = $cutEnd }
+    }
+
+    if ($i -lt $silences.Count) { $speechStart = $silences[$i].End }
 }
 
 Write-Host "that gives $($segments.Count) clips"
@@ -142,9 +170,10 @@ if ($NamesFile -and (Test-Path $NamesFile)) {
 for ($i = 0; $i -lt $segments.Count; $i++) {
     $segment = $segments[$i]
 
-    # A little air either side so nothing is clipped off the start of a word.
-    $from = [math]::Max(0, $segment.Start - 0.15)
-    $length = ($segment.End - $segment.Start) + 0.30
+    # Padding is already baked into Start and End: each boundary sits in the middle
+    # of a silence. Cut exactly what the segment says.
+    $from = [math]::Max(0, $segment.Start)
+    $length = $segment.End - $segment.Start
 
     $name = if ($names.Count -gt $i) { $names[$i].Trim() } else { "clip_{0:D3}" -f ($i + 1) }
     $out = Join-Path $OutputFolder "$name.wav"

@@ -94,15 +94,23 @@ ffmpeg -f dshow -i audio="Microphone (Realtek High Definition Audio)" -ac 1 -ar 
 - [ ] **Wait two seconds before your first line.** That gives us clean room tone.
 - [ ] Read every line in order, top to bottom.
 
-### The four rules while reading
+### The five rules while reading
 
-1. **Pause about two seconds between lines.** This is how the splitter finds the breaks. Do
-   not rush from one line into the next.
-2. **Do not pause in the middle of a line.** A gap inside a line splits it in two.
-3. **Underplay everything.** A flight controller has done this a thousand times. If a line
+1. **Leave a clear two-second gap between lines.** Silently count "one, two" after each
+   one before starting the next. This is how the splitter finds the breaks, and short gaps
+   are what made two lines merge last time.
+2. **End each line crisply.** Do not let your voice trail off into a mumble. A soft fading
+   tail dips in and out of the silence detection and is what clips word endings. Finish the
+   word cleanly, then stop.
+3. **Do not pause in the middle of a line.** A gap inside a line splits it in two.
+4. **Underplay everything.** A flight controller has done this a thousand times. If a line
    sounds like a joke when you read it, say it flatter.
-4. **Fluffed a line?** Pause, then say it again. Keep the mistake in. You will hear both
+5. **Fluffed a line?** Pause, then say it again. Keep the mistake in. You will hear both
    versions and can delete the bad one. Do not stop recording.
+
+> The tool has been fixed since the first attempt: it no longer crashes on ffmpeg's output,
+> and it now keeps 0.4 seconds of clean silence around every clip so word edges are never
+> cut. What it still needs from you is clear gaps, so it can tell one line from the next.
 
 - [ ] When you reach the end, wait two seconds, then press **Ctrl+C** to stop.
 
