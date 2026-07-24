@@ -64,33 +64,43 @@ namespace Dikdik.Matching
             var bestConfidence = 0f;
             var bestPhraseLength = 0;
 
+            // Score one phrase against the utterance and keep it if it is the best so far.
+            //
+            // On a tie, the longer phrase wins, because it is the more specific reading.
+            // "Go right" contains both "go" and "right" at identical confidence; the
+            // speaker meant the direction, and the direction is the longer match.
+            // Otherwise whichever intent happened to be declared first would win, which
+            // is an accident of ordering rather than a decision.
+            void Consider(IntentId id, string phrase)
+            {
+                var confidence = Score(normalised, phrase);
+                if (confidence <= 0f)
+                    return;
+
+                var better = confidence > bestConfidence ||
+                             (confidence == bestConfidence && phrase.Length > bestPhraseLength);
+                if (!better)
+                    return;
+
+                bestConfidence = confidence;
+                bestPhraseLength = phrase.Length;
+                bestIntent = id;
+            }
+
             foreach (var pair in IntentVocabulary.Phrases)
             {
                 if (allowed != null && !Contains(allowed, pair.Key))
                     continue;
 
                 foreach (var phrase in pair.Value)
-                {
-                    var confidence = Score(normalised, phrase);
-                    if (confidence <= 0f)
-                        continue;
+                    Consider(pair.Key, phrase);
 
-                    // On a tie, the longer phrase wins, because it is the more specific
-                    // reading. "Go right" contains both "go" and "right" at identical
-                    // confidence; the speaker meant the direction, and the direction is
-                    // the longer match. Previously whichever intent happened to be
-                    // declared first in the dictionary won, which is not a decision so
-                    // much as an accident of ordering.
-                    var better = confidence > bestConfidence ||
-                                 (confidence == bestConfidence && phrase.Length > bestPhraseLength);
-
-                    if (!better)
-                        continue;
-
-                    bestConfidence = confidence;
-                    bestPhraseLength = phrase.Length;
-                    bestIntent = pair.Key;
-                }
+                // Words the player taught this command count exactly as much as the
+                // built-in ones. A voice player who taught Salty "advance" for Go should
+                // find it just as reliable as "go" itself.
+                var taught = IntentVocabulary.TaughtFor(pair.Key);
+                for (var i = 0; i < taught.Count; i++)
+                    Consider(pair.Key, taught[i]);
             }
 
             if (bestIntent == IntentId.None || bestConfidence < MinimumSimilarity)

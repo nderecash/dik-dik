@@ -75,6 +75,14 @@ namespace Dikdik.Producers
 
             foreach (var pair in _bindings)
             {
+                // A jammed key is dead until the command bound to it is remapped
+                // elsewhere. This is the whole of the jammed-key level: the console
+                // reports a stuck control, the physical key does nothing, and the fix
+                // is to bind that command to a different key. The fault is the console's,
+                // never the player's.
+                if (pair.Value == _jammedKey)
+                    continue;
+
                 var control = keyboard[pair.Value];
                 if (control != null && control.wasPressedThisFrame)
                 {
@@ -91,6 +99,20 @@ namespace Dikdik.Producers
                 }
             }
         }
+
+        private Key _jammedKey = Key.None;
+
+        /// <summary>The stuck key, or None. Shown in the settings so the player knows which.</summary>
+        public Key JammedKey => _jammedKey;
+
+        /// <summary>Jam a physical key. It stops registering until nothing is bound to it.</summary>
+        public void SetJammedKey(Key key) => _jammedKey = key;
+
+        public void ClearJam() => _jammedKey = Key.None;
+
+        /// <summary>The key currently bound to a command, or None.</summary>
+        public Key KeyFor(IntentId intent) =>
+            _bindings.TryGetValue(intent, out var key) ? key : Key.None;
 
         public void Rebind(IntentId intent, Key key)
         {

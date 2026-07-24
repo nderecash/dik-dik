@@ -128,5 +128,101 @@ namespace Dikdik.Matching
             IntentId.Right,
             IntentId.Open
         };
+
+        // ------------------------------------------------------------------
+        // Words the player taught the rover, on top of the built-in ones.
+        //
+        // This is the voice half of "allow controls to be remapped". A keyboard player
+        // rebinds a key; a voice player teaches Salty a phrase, and from then on the
+        // rover answers to their word. It is also the loop this whole project has been
+        // running on the player's behalf, now handed to them: every built-in phrase
+        // above got there because someone said it and was not understood. This lets the
+        // player close that gap themselves.
+        //
+        // Kept pure in-memory here, with no PlayerPrefs, so this file stays free of
+        // UnityEngine and can still be unit-tested with plain dotnet. Persistence lives
+        // in a Unity-only wrapper that saves on Changed and loads via Deserialize.
+        // ------------------------------------------------------------------
+        private static readonly Dictionary<IntentId, List<string>> Taught =
+            new Dictionary<IntentId, List<string>>();
+
+        /// <summary>Raised whenever the taught set changes, so a persistence layer can save.</summary>
+        public static event System.Action Changed;
+
+        /// <summary>Teach the rover a new phrase for a command.</summary>
+        public static void Teach(IntentId id, string phrase)
+        {
+            if (string.IsNullOrWhiteSpace(phrase))
+                return;
+
+            var clean = phrase.Trim().ToLowerInvariant();
+
+            if (!Taught.TryGetValue(id, out var list))
+            {
+                list = new List<string>();
+                Taught[id] = list;
+            }
+
+            if (!list.Contains(clean))
+            {
+                list.Add(clean);
+                Changed?.Invoke();
+            }
+        }
+
+        /// <summary>Phrases the player taught for a command. Empty if none.</summary>
+        public static IReadOnlyList<string> TaughtFor(IntentId id)
+        {
+            return Taught.TryGetValue(id, out var list) ? list : System.Array.Empty<string>();
+        }
+
+        public static void ClearTaught()
+        {
+            Taught.Clear();
+            Changed?.Invoke();
+        }
+
+        /// <summary>Serialize the taught set as "Intent=phrase" lines. Trivially inspectable.</summary>
+        public static string Serialize()
+        {
+            var lines = new List<string>();
+            foreach (var pair in Taught)
+                foreach (var phrase in pair.Value)
+                    lines.Add($"{pair.Key}={phrase}");
+
+            return string.Join("\n", lines);
+        }
+
+        /// <summary>Replace the taught set from a serialized string. Raises Changed once.</summary>
+        public static void Deserialize(string raw)
+        {
+            Taught.Clear();
+
+            if (!string.IsNullOrEmpty(raw))
+            {
+                foreach (var line in raw.Split('\n'))
+                {
+                    var parts = line.Split('=');
+                    if (parts.Length != 2)
+                        continue;
+
+                    if (System.Enum.TryParse(parts[0], out IntentId id) &&
+                        !string.IsNullOrWhiteSpace(parts[1]))
+                    {
+                        if (!Taught.TryGetValue(id, out var list))
+                        {
+                            list = new List<string>();
+                            Taught[id] = list;
+                        }
+
+                        var clean = parts[1].Trim().ToLowerInvariant();
+                        if (!list.Contains(clean))
+                            list.Add(clean);
+                    }
+                }
+            }
+
+            Changed?.Invoke();
+        }
     }
 }

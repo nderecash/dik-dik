@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Dikdik.Commands;
+using Dikdik.Matching;
 using Dikdik.Producers;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -40,6 +41,7 @@ namespace Dikdik.Game
         {
             ("Level01", "1  Dust corridor"),
             ("Level03", "3  Night side"),
+            ("Level04", "4  The jammed key"),
             ("Level05", "5  The slope")
         };
 
@@ -48,6 +50,8 @@ namespace Dikdik.Game
         private bool _open;
         private Tab _tab = Tab.Play;
         private IntentId _rebinding = IntentId.None;
+        private IntentId _teaching = IntentId.None;
+        private string _teachText = string.Empty;
         private Vector2 _scroll;
 
         private KeyboardCommandProducer _keyboard;
@@ -223,6 +227,9 @@ namespace Dikdik.Game
         private void DrawControls(GUIStyle body, GUIStyle button)
         {
             GUILayout.Label("Every command works by voice and by key. Neither is the real one.", body);
+            GUILayout.Space(8);
+            GUILayout.Label("Rebind a key, or teach Salty a new word to say for a command. " +
+                            "A word you teach works as reliably as the built-in ones.", body);
             GUILayout.Space(12);
 
             var producer = Producer;
@@ -232,16 +239,40 @@ namespace Dikdik.Game
                 return;
             }
 
+            if (producer.JammedKey != Key.None)
+            {
+                GUILayout.Label($"Console fault: the {producer.JammedKey} key is stuck. " +
+                                "Bind the affected command to another key, or use your voice.", body);
+                GUILayout.Space(8);
+            }
+
             foreach (var pair in new List<KeyValuePair<IntentId, Key>>(producer.Bindings))
             {
                 GUILayout.BeginHorizontal();
-                GUILayout.Label(Describe(pair.Key), body, GUILayout.Width(240));
+                GUILayout.Label(Describe(pair.Key), body, GUILayout.Width(180));
 
-                var label = _rebinding == pair.Key ? "press a key..." : pair.Value.ToString();
-                if (GUILayout.Button(label, button, GUILayout.Width(160)))
+                var jammed = pair.Value == producer.JammedKey;
+                var keyLabel = _rebinding == pair.Key ? "press a key..."
+                             : jammed ? $"{pair.Value} (stuck)"
+                             : pair.Value.ToString();
+                if (GUILayout.Button(keyLabel, button, GUILayout.Width(150)))
                     _rebinding = pair.Key;
 
+                if (GUILayout.Button("teach a word", button, GUILayout.Width(140)))
+                {
+                    _teaching = _teaching == pair.Key ? IntentId.None : pair.Key;
+                    _teachText = string.Empty;
+                }
+
                 GUILayout.EndHorizontal();
+
+                if (_teaching == pair.Key)
+                    DrawTeachRow(pair.Key, body, button);
+
+                var taught = IntentVocabulary.TaughtFor(pair.Key);
+                if (taught.Count > 0)
+                    GUILayout.Label("   taught: " + string.Join(", ", taught), body);
+
                 GUILayout.Space(4);
             }
 
@@ -249,8 +280,41 @@ namespace Dikdik.Game
             if (GUILayout.Button("Reset controls to defaults", button))
                 producer.ResetBindings();
 
+            if (GUILayout.Button("Forget all taught words", button))
+            {
+                IntentVocabulary.ClearTaught();
+                _teaching = IntentId.None;
+            }
+
             GUILayout.Space(8);
             GUILayout.Label("Escape cancels a rebind.", body);
+        }
+
+        private void DrawTeachRow(IntentId intent, GUIStyle body, GUIStyle button)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Space(20);
+            GUILayout.Label($"Say this for {Describe(intent)}:", body, GUILayout.Width(220));
+
+            GUI.SetNextControlName("teachField");
+            _teachText = GUILayout.TextField(_teachText, 40, GUILayout.Width(200));
+
+            var enterPressed = Event.current.type == EventType.KeyDown &&
+                               (Event.current.keyCode == KeyCode.Return ||
+                                Event.current.keyCode == KeyCode.KeypadEnter);
+
+            if (GUILayout.Button("save", button, GUILayout.Width(90)) || enterPressed)
+            {
+                if (!string.IsNullOrWhiteSpace(_teachText))
+                    IntentVocabulary.Teach(intent, _teachText);
+
+                _teaching = IntentId.None;
+                _teachText = string.Empty;
+            }
+
+            GUILayout.EndHorizontal();
+            GUILayout.Label("   Type a word or short phrase. From now on, saying it means " +
+                            $"{Describe(intent).ToLowerInvariant()}.", body);
         }
 
         private void DrawLevels(GUIStyle body, GUIStyle button)

@@ -1,4 +1,5 @@
 using Dikdik.Commands;
+using Dikdik.Matching;
 using Dikdik.Producers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -47,6 +48,29 @@ namespace Dikdik.Game
             DontDestroyOnLoad(gameObject);
 
             GameSettings.Load();
+            LoadVocabulary();
+        }
+
+        private const string VocabularyKey = "dikdik.taught";
+
+        /// <summary>
+        /// Bring the player's taught words back, and keep them saved.
+        ///
+        /// Deserialize first, then subscribe: the deserialize itself raises Changed, and
+        /// we do not want to write the file back out during load. The matcher stays free
+        /// of PlayerPrefs so it can be tested with plain dotnet; the persistence lives
+        /// here, in Unity, where it belongs.
+        /// </summary>
+        private void LoadVocabulary()
+        {
+            IntentVocabulary.Deserialize(PlayerPrefs.GetString(VocabularyKey, string.Empty));
+            IntentVocabulary.Changed += SaveVocabulary;
+        }
+
+        private void SaveVocabulary()
+        {
+            PlayerPrefs.SetString(VocabularyKey, IntentVocabulary.Serialize());
+            PlayerPrefs.Save();
         }
 
         private void Start()
