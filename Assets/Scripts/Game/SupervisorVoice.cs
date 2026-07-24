@@ -66,6 +66,15 @@ namespace Dikdik.Game
 
         public static bool IsListeningBlocked => Time.time < _listenBlockedUntil;
 
+        /// <summary>
+        /// Block listening for a while, used by the station voice on Level 2 so the mic
+        /// does not transcribe the automated system reading jargon through the speakers.
+        /// </summary>
+        public static void BlockListeningFor(float seconds)
+        {
+            _listenBlockedUntil = Mathf.Max(_listenBlockedUntil, Time.time + seconds);
+        }
+
         /// <summary>True while the opening briefing is running. It can be skipped.</summary>
         public bool IsBriefing => _briefing;
 

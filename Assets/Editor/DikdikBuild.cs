@@ -132,6 +132,7 @@ public static class DikdikBuild
     {
         "Assets/Scenes/Boot.unity",
         "Assets/Scenes/Level01.unity",
+        "Assets/Scenes/Level02.unity",
         "Assets/Scenes/Level03.unity",
         "Assets/Scenes/Level04.unity",
         "Assets/Scenes/Level05.unity",

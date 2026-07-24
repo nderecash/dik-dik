@@ -127,6 +127,31 @@ namespace Dikdik.Game
         }
 
         private static readonly Color BroadcastTint = new Color(1f, 0.92f, 0.6f);
+        private static readonly Color StationTint = new Color(0.7f, 0.85f, 0.7f);
+
+        /// <summary>
+        /// The station's automated system talking, in jargon. Labelled STATION and tinted
+        /// apart from the human supervisor, because the contrast between the two is the
+        /// whole point of the level: the machine talks like this, the person talks plainly.
+        /// </summary>
+        public void ShowStationLine(string line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                return;
+
+            ShowSpeaker("STATION", StationTint);
+
+            if (heardText != null)
+            {
+                heardText.text = line;
+                heardText.color = GameSettings.HighContrast ? Color.white : new Color(0.8f, 0.9f, 0.8f);
+            }
+
+            if (statusText != null)
+                statusText.text = GameSettings.Subtitles ? "Automated. Wait for the translation." : string.Empty;
+
+            _clearAt = 0f;
+        }
 
         /// <summary>
         /// The player's own words going out on the open loop, at the end.

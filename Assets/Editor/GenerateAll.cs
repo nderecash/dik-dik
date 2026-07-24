@@ -11,6 +11,7 @@ public static class GenerateAll
     {
         BootSceneBuilder.Generate();
         Level01SceneBuilder.Generate();
+        Level02SceneBuilder.Generate();
         Level03SceneBuilder.Generate();
         Level04SceneBuilder.Generate();
         Level05SceneBuilder.Generate();
