@@ -47,6 +47,21 @@ public static class BootSceneBuilder
 
         var comms = BuildConsole(root, out var camera);
 
+        // The supervisor's voice. Its own audio source, so its lines mix over the
+        // rover's beeps rather than cutting them off. Wired to the console so every
+        // spoken line is also captioned.
+        var supervisorObject = new GameObject("Supervisor");
+        supervisorObject.transform.SetParent(root.transform);
+        var supervisorSource = supervisorObject.AddComponent<AudioSource>();
+        supervisorSource.playOnAwake = false;
+        supervisorSource.spatialBlend = 0f;
+
+        var supervisor = supervisorObject.AddComponent<SupervisorVoice>();
+        var supervisorSerialized = new SerializedObject(supervisor);
+        SetRef(supervisorSerialized, "source", supervisorSource);
+        SetRef(supervisorSerialized, "comms", comms);
+        supervisorSerialized.ApplyModifiedPropertiesWithoutUndo();
+
         var bootSerialized = new SerializedObject(bootstrap);
         SetRef(bootSerialized, "bus", bus);
         SetRef(bootSerialized, "journal", journal);

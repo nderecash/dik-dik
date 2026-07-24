@@ -80,6 +80,34 @@ namespace Dikdik.Game
         }
 
         /// <summary>
+        /// The supervisor speaking. Their line, held for a few seconds, styled apart from
+        /// the rover's own feedback so it reads as a second person on the loop.
+        ///
+        /// Always shown, whatever the audio does, because the recorded voice is radio-
+        /// degraded on purpose and the words live here. This is "subtitles for all speech"
+        /// meant literally.
+        /// </summary>
+        public void ShowSupervisorLine(string line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                return;
+
+            if (heardText != null)
+            {
+                heardText.text = $"Control: {line}";
+                heardText.color = GameSettings.HighContrast ? Color.white : new Color(0.8f, 0.86f, 1f);
+            }
+
+            if (statusText != null)
+                statusText.text = string.Empty;
+
+            // Rough reading time: a beat plus a bit per word. Long lines linger, short ones
+            // do not overstay.
+            var words = line.Split(' ').Length;
+            _clearAt = Time.time + Mathf.Clamp(1.5f + words * 0.35f, 2.5f, 8f);
+        }
+
+        /// <summary>
         /// Salty asking something, rather than us reporting on Salty.
         ///
         /// Held on screen with no timeout, because it is a question and questions wait.
@@ -157,7 +185,12 @@ namespace Dikdik.Game
         private void ShowResting()
         {
             if (heardText != null)
+            {
                 heardText.text = _listening ? "Listening." : "Say something to the rover.";
+                // Back to the neutral colour, or a supervisor line leaves the resting
+                // prompt tinted its blue.
+                heardText.color = GameSettings.HighContrast ? Color.white : new Color(0.92f, 0.94f, 0.96f);
+            }
 
             if (statusText != null)
                 statusText.text = string.Empty;
