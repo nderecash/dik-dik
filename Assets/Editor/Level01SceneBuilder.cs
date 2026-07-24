@@ -56,8 +56,10 @@ public static class Level01SceneBuilder
     {
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-        var wallMaterial = MakeMaterial("LunarSilhouette", "Unlit/Color", Color.black);
-        var groundMaterial = MakeMaterial("LunarGround", "Standard", new Color(0.20f, 0.19f, 0.18f));
+        // Lit look: grey lunar rock for the walls, brighter regolith ground, all catching
+        // the sun. The rover keeps its own Kenney colours (null override below).
+        var wallMaterial = Environment.LitMaterial("LunarRock", new Color(0.34f, 0.32f, 0.30f));
+        var groundMaterial = Environment.LitMaterial("LunarGround", new Color(0.42f, 0.40f, 0.37f));
         var shellMaterial = MakeMaterial("RoverShell", "Unlit/Color", new Color(0.85f, 0.88f, 1f));
         var markerMaterial = MakeMaterial("JunctionMarker", "Unlit/Color", new Color(0.15f, 0.16f, 0.2f));
 
@@ -121,17 +123,14 @@ public static class Level01SceneBuilder
         var rover = new GameObject("Salty");
         rover.transform.position = new Vector3(0f, 0.4f, 0f);
 
-        var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        body.name = "Body";
-        body.transform.SetParent(rover.transform, false);
-        body.transform.localScale = new Vector3(1.1f, 0.5f, 1.6f);
-        body.GetComponent<Renderer>().sharedMaterial = wallMaterial;
-        Object.DestroyImmediate(body.GetComponent<Collider>());
-
-        // Wheels, mast and dish, all black so the rover reads as a proper silhouette
-        // shape against the sky rather than a plain box. None of them are lit; they are
-        // there to be recognised, not seen in detail.
-        Environment.BuildRoverDetail(rover.transform, wallMaterial);
+        // The rover body is now the Kenney rover model, rendered in the silhouette black
+        // so we keep its detailed shape and nothing else. It replaces the primitive box
+        // and the kitbashed wheels/mast/dish.
+        // The Kenney rover in its own colours, lit by the sun.
+        var body = Environment.InstantiateModel("rover", null, 4.2f);
+        body.name = "Rover Model";
+        body.transform.SetParent(rover.transform, true);
+        body.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
 
         // The only lit part of the rover. In a silhouette world this is how you see it
         // at all, which makes light the machine's single means of expression.
@@ -272,8 +271,13 @@ public static class Level01SceneBuilder
         // horizon is what the silhouette style needs behind its black shapes.
         Environment.ApplyLighting("dusk", new Color(0.62f, 0.6f, 0.62f), new Color(0.04f, 0.05f, 0.11f));
         Environment.BuildHorizon(new Vector3(0f, 0f, bounds.center.z), 120f, 1);
-        Environment.ScatterRocks(new Vector3(0f, 0f, bounds.center.z),
-                                 40f, bounds.size.z * 0.7f + 20f, CorridorHalfWidth + 2f, 60, 1);
+        Environment.ScatterKenneyRocks(new Vector3(0f, 0f, bounds.center.z),
+                                       40f, bounds.size.z * 0.7f + 20f, CorridorHalfWidth + 3f, 45, 1);
+
+        // Kenney structures as landmarks, keeping their own colours.
+        Environment.PlaceModel("satelliteDish", new Vector3(-16f, 0f, 4f), 40f, 5f);
+        Environment.PlaceModel("hangar_smallA", new Vector3(20f, 0f, 20f), -120f, 6f);
+        Environment.PlaceModel("rocket_baseA", new Vector3(24f, 0f, -6f), 0f, 5f);
 
         // ------------------------------------------------------------------
         // Level plumbing

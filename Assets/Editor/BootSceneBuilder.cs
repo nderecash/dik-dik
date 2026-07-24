@@ -62,6 +62,18 @@ public static class BootSceneBuilder
         SetRef(supervisorSerialized, "comms", comms);
         supervisorSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        // A low connection hum, always on. It says "you are still on the loop" so the
+        // silence is never dead and the supervisor does not have to keep filling it. Its
+        // own persistent source, looping, quiet enough to sit under everything else.
+        var ambientObject = new GameObject("Ambient");
+        ambientObject.transform.SetParent(root.transform);
+        var ambient = ambientObject.AddComponent<AudioSource>();
+        ambient.clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/connection_loop.wav");
+        ambient.loop = true;
+        ambient.playOnAwake = true;
+        ambient.spatialBlend = 0f;
+        ambient.volume = 0.35f;
+
         var bootSerialized = new SerializedObject(bootstrap);
         SetRef(bootSerialized, "bus", bus);
         SetRef(bootSerialized, "journal", journal);
@@ -154,14 +166,16 @@ public static class BootSceneBuilder
 
         canvasObject.AddComponent<GraphicRaycaster>();
 
-        // Panel across the bottom.
+        // Panel across the TOP, over the sky. The rover sits at the bottom-centre under
+        // the follow camera, so a panel at the bottom covered it. Up here the dark panel
+        // reads cleanly against the bright horizon and never hides the rover.
         var panel = NewUiObject("Comms Panel", canvasObject.transform);
         var panelRect = panel.GetComponent<RectTransform>();
-        panelRect.anchorMin = new Vector2(0f, 0f);
-        panelRect.anchorMax = new Vector2(1f, 0f);
-        panelRect.pivot = new Vector2(0.5f, 0f);
-        panelRect.offsetMin = new Vector2(48f, 40f);
-        panelRect.offsetMax = new Vector2(-48f, 240f);
+        panelRect.anchorMin = new Vector2(0f, 1f);
+        panelRect.anchorMax = new Vector2(1f, 1f);
+        panelRect.pivot = new Vector2(0.5f, 1f);
+        panelRect.offsetMin = new Vector2(48f, -232f);
+        panelRect.offsetMax = new Vector2(-48f, -32f);
 
         var background = panel.AddComponent<Image>();
         background.color = new Color(0f, 0f, 0f, 0.65f);

@@ -32,8 +32,15 @@ namespace Dikdik.Game
                  "every time; the voice chimes in less often so it does not nag.")]
         [SerializeField] private float missCooldown = 9f;
 
-        [Tooltip("Seconds of no command and no movement before the idle line plays")]
-        [SerializeField] private float idleAfter = 22f;
+        [Tooltip("Seconds of stillness before the first idle line. Each one after pushes " +
+                 "the next further out, so it stops repeating that it does not mind waiting.")]
+        [SerializeField] private float idleAfter = 40f;
+
+        [Tooltip("How much further out each idle line pushes the next. 1.6 means the gap " +
+                 "grows by 60 percent each time, up to the cap.")]
+        [SerializeField] private float idleBackoff = 1.6f;
+
+        [SerializeField] private float idleMaxInterval = 180f;
 
         private readonly Dictionary<string, List<AudioClip>> _groups =
             new Dictionary<string, List<AudioClip>>();
@@ -41,6 +48,7 @@ namespace Dikdik.Game
 
         private float _nextMissAllowed;
         private float _idleAt;
+        private float _idleInterval;
         private bool _bootPlayed;
         private bool _ackThisLevel;
         private bool _briefing;
@@ -132,7 +140,7 @@ namespace Dikdik.Game
             _director = FindAnyObjectByType<LevelDirector>();
 
             _ackThisLevel = false;
-            _idleAt = Time.time + idleAfter;
+            ResetIdle();
 
             if (_rover != null)
                 _rover.Blocked += OnBlocked;
@@ -171,7 +179,7 @@ namespace Dikdik.Game
         // ---------------------------------------------------------------------
         private void OnCommandIssued(Intent intent)
         {
-            _idleAt = Time.time + idleAfter;
+            ResetIdle();
 
             // One reassurance per level, on the first command that worked. After that
             // the console's own feedback is enough and the supervisor stays quiet.
@@ -184,7 +192,7 @@ namespace Dikdik.Game
 
         private void OnNotUnderstood(Intent intent)
         {
-            _idleAt = Time.time + idleAfter;
+            ResetIdle();
 
             // The console already shows "I did not understand" every time. The supervisor
             // speaks less often, so being misheard twice in a row does not turn into a
@@ -236,11 +244,23 @@ namespace Dikdik.Game
                         (source == null || !source.isPlaying);
 
             if (quiet)
+            {
                 PlayOne("idle");
 
-            // Push the next one out whether or not it fired, so it does not retrigger
-            // every frame once the threshold passes.
-            _idleAt = Time.time + idleAfter;
+                // Each idle line pushes the next one further out. Standing still for a
+                // long stretch should not mean being told every forty seconds that the
+                // rover does not mind waiting. The ambient hum already says you are
+                // connected; this is just an occasional human check-in.
+                _idleInterval = Mathf.Min(_idleInterval * idleBackoff, idleMaxInterval);
+            }
+
+            _idleAt = Time.time + _idleInterval;
+        }
+
+        private void ResetIdle()
+        {
+            _idleInterval = idleAfter;
+            _idleAt = Time.time + _idleInterval;
         }
 
         // ---------------------------------------------------------------------
@@ -307,7 +327,7 @@ namespace Dikdik.Game
         {
             _briefing = false;
             _listenBlockedUntil = 0f;
-            _idleAt = Time.time + idleAfter;
+            ResetIdle();
 
             if (comms != null)
                 comms.ClearSupervisor();

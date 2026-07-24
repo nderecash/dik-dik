@@ -43,8 +43,8 @@ public static class Level05SceneBuilder
     {
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-        var wallMaterial = MakeMaterial("LunarSilhouette", "Unlit/Color", Color.black);
-        var groundMaterial = MakeMaterial("LunarGround", "Standard", new Color(0.20f, 0.19f, 0.18f));
+        var wallMaterial = Environment.LitMaterial("LunarRock", new Color(0.34f, 0.32f, 0.30f));
+        var groundMaterial = Environment.LitMaterial("LunarGround", new Color(0.42f, 0.40f, 0.37f));
         var shellMaterial = MakeMaterial("RoverShell", "Unlit/Color", new Color(0.85f, 0.88f, 1f));
         var padMaterial = MakeMaterial("StopPad", "Unlit/Color", new Color(0.7f, 0.55f, 0.2f));
 
@@ -176,8 +176,10 @@ public static class Level05SceneBuilder
 
         Environment.ApplyLighting("dusk", new Color(0.62f, 0.6f, 0.62f), new Color(0.04f, 0.05f, 0.11f));
         Environment.BuildHorizon(new Vector3(0f, 0f, RunEnd * 0.5f), 130f, 5);
-        Environment.ScatterRocks(new Vector3(0f, 0f, RunEnd * 0.5f),
-                                 40f, RunEnd * 0.6f + 20f, HalfWidth + 2f, 55, 5);
+        Environment.ScatterKenneyRocks(new Vector3(0f, 0f, RunEnd * 0.5f),
+                                       42f, RunEnd * 0.6f + 20f, HalfWidth + 3f, 40, 5);
+        Environment.PlaceModel("satelliteDish_large", new Vector3(-20f, 0f, RunEnd * 0.5f), 30f, 5f);
+        Environment.PlaceModel("hangar_smallB", new Vector3(22f, 0f, RunEnd - 6f), -110f, 6f);
 
         // ------------------------------------------------------------------
         // Director settings
@@ -222,9 +224,10 @@ public static class Level05SceneBuilder
         body.transform.SetParent(rover.transform, false);
         body.transform.localScale = new Vector3(1.1f, 0.6f, 1.6f);
         body.GetComponent<Renderer>().sharedMaterial = wallMaterial;
+        body.SetActive(false);   // replaced by the Kenney rover model below
         Object.DestroyImmediate(body.GetComponent<Collider>());
 
-        Environment.BuildRoverDetail(rover.transform, wallMaterial);
+        Environment.AttachRoverModel(rover.transform, null);
 
         var shell = GameObject.CreatePrimitive(PrimitiveType.Cube);
         shell.name = "Shell Light";

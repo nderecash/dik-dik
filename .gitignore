@@ -120,3 +120,6 @@ Builds/
 
 # Dev screenshots from Screenshotter
 /shot*.png
+
+/shot_lit*.png
+/shot_kenney*.png

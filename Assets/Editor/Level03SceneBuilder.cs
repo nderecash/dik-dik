@@ -48,8 +48,10 @@ public static class Level03SceneBuilder
     {
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-        var wallMaterial = MakeMaterial("LunarSilhouette", "Unlit/Color", Color.black);
-        var groundMaterial = MakeMaterial("LunarGround", "Standard", new Color(0.20f, 0.19f, 0.18f));
+        // Lit materials like the day levels, but the night lighting keeps them dark. The
+        // crevasses stay too dark to see without high contrast, which is the whole level.
+        var wallMaterial = Environment.LitMaterial("LunarRock", new Color(0.34f, 0.32f, 0.30f));
+        var groundMaterial = Environment.LitMaterial("LunarGround", new Color(0.42f, 0.40f, 0.37f));
         var shellMaterial = MakeMaterial("RoverShell", "Unlit/Color", new Color(0.85f, 0.88f, 1f));
         var markerMaterial = MakeMaterial("JunctionMarker", "Unlit/Color", new Color(0.12f, 0.13f, 0.16f));
 
@@ -266,9 +268,10 @@ public static class Level03SceneBuilder
         body.transform.SetParent(rover.transform, false);
         body.transform.localScale = new Vector3(1.1f, 0.6f, 1.6f);
         body.GetComponent<Renderer>().sharedMaterial = wallMaterial;
+        body.SetActive(false);   // replaced by the Kenney rover model below
         Object.DestroyImmediate(body.GetComponent<Collider>());
 
-        Environment.BuildRoverDetail(rover.transform, wallMaterial);
+        Environment.AttachRoverModel(rover.transform, null);
 
         var shell = GameObject.CreatePrimitive(PrimitiveType.Cube);
         shell.name = "Shell Light";

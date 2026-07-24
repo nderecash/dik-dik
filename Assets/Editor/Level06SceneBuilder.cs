@@ -34,8 +34,8 @@ public static class Level06SceneBuilder
     {
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-        var wallMaterial = MakeMaterial("LunarSilhouette", "Unlit/Color", Color.black);
-        var groundMaterial = MakeMaterial("LunarGround", "Standard", new Color(0.18f, 0.17f, 0.16f));
+        var wallMaterial = Environment.LitMaterial("LunarRock", new Color(0.34f, 0.32f, 0.30f));
+        var groundMaterial = Environment.LitMaterial("LunarGround", new Color(0.42f, 0.40f, 0.37f));
         var shellMaterial = MakeMaterial("RoverShell", "Unlit/Color", new Color(0.85f, 0.88f, 1f));
         var dormantMaterial = MakeMaterial("DormantShell", "Unlit/Color", new Color(0.02f, 0.02f, 0.03f));
 
@@ -173,9 +173,10 @@ public static class Level06SceneBuilder
         body.transform.SetParent(rover.transform, false);
         body.transform.localScale = new Vector3(1.1f, 0.6f, 1.6f);
         body.GetComponent<Renderer>().sharedMaterial = bodyMaterial;
+        body.SetActive(false);   // replaced by the Kenney rover model below
         Object.DestroyImmediate(body.GetComponent<Collider>());
 
-        Environment.BuildRoverDetail(rover.transform, bodyMaterial);
+        Environment.AttachRoverModel(rover.transform, null);
 
         var shell = GameObject.CreatePrimitive(PrimitiveType.Cube);
         shell.name = "Shell Light";
@@ -229,12 +230,10 @@ public static class Level06SceneBuilder
         rover.transform.position = position;
         rover.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
-        var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        body.transform.SetParent(rover.transform, false);
-        body.transform.localScale = new Vector3(1.1f, 0.6f, 1.6f);
-        body.GetComponent<Renderer>().sharedMaterial =
-            MakeMaterial("LunarSilhouette", "Unlit/Color", Color.black);
-        Object.DestroyImmediate(body.GetComponent<Collider>());
+        // The dormant rover's body is a dark Kenney rover, so the plain is dotted with
+        // the same machine as Salty, unlit until the broadcast wakes each one.
+        var dark = Environment.LitMaterial("DormantBody", new Color(0.06f, 0.06f, 0.08f));
+        Environment.AttachRoverModel(rover.transform, dark);
 
         var shell = GameObject.CreatePrimitive(PrimitiveType.Cube);
         shell.transform.SetParent(rover.transform, false);

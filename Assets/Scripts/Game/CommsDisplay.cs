@@ -161,8 +161,14 @@ namespace Dikdik.Game
             ShowResting();
         }
 
+        private bool _speakerShowing;
+        private bool _messageHeld;
+
         private void ShowSpeaker(string who, Color tint)
         {
+            _speakerShowing = true;
+            _messageHeld = true;
+
             if (speakerBadge != null)
                 speakerBadge.SetActive(true);
 
@@ -179,6 +185,8 @@ namespace Dikdik.Game
 
         private void HideSpeaker()
         {
+            _speakerShowing = false;
+
             if (speakerBadge != null)
                 speakerBadge.SetActive(false);
         }
@@ -218,6 +226,15 @@ namespace Dikdik.Game
         public void SetListening(bool listening)
         {
             _listening = listening;
+
+            // Never wipe a line someone is speaking. The microphone's voice detection
+            // fires constantly, including on Control's own voice through the speakers,
+            // and it used to overwrite the subtitle with "Listening" before the player
+            // could read it, which read as a prompt to talk over the briefing. While a
+            // speaker badge is up, or a message is being held, the caption stays.
+            if (_speakerShowing || _clearAt == 0f && _messageHeld)
+                return;
+
             if (Time.time >= _clearAt)
                 ShowResting();
         }
@@ -262,6 +279,7 @@ namespace Dikdik.Game
             // This is the console echoing the player's own words back, not a person
             // speaking to them, so no speaker badge.
             HideSpeaker();
+            _messageHeld = true;
 
             if (heardText != null)
             {
@@ -279,6 +297,7 @@ namespace Dikdik.Game
         private void ShowResting()
         {
             HideSpeaker();
+            _messageHeld = false;
 
             if (heardText != null)
             {

@@ -72,7 +72,9 @@ public static class Environment
     public static void BuildHorizon(Vector3 center, float radius, int seed)
     {
         var parent = new GameObject("Horizon");
-        var ridge = MakeMaterial("LunarSilhouette", "Unlit/Color", Color.black);
+        // Dark lit rock rather than pure black, so the distant rim reads as terrain in
+        // shadow in a lit world instead of a flat black band.
+        var ridge = LitMaterial("HorizonRock", new Color(0.14f, 0.13f, 0.14f));
         var rng = new System.Random(seed);
 
         var segments = 90;
@@ -142,6 +144,79 @@ public static class Environment
         UnityEngine.Object.DestroyImmediate(dish.GetComponent<Collider>());
     }
 
+    /// <summary>A lit standard material, created once and reused by name.</summary>
+    public static Material LitMaterial(string name, Color colour, float smoothness = 0.1f)
+    {
+        Directory.CreateDirectory(MaterialFolder);
+        var path = $"{MaterialFolder}/{name}.mat";
+
+        var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (existing != null)
+            return existing;
+
+        var mat = new Material(Shader.Find("Standard")) { color = colour };
+        mat.SetFloat("_Glossiness", smoothness);
+        AssetDatabase.CreateAsset(mat, path);
+        return mat;
+    }
+
+    /// <summary>
+    /// Attach the Kenney rover model to a rover transform, sitting on the ground and
+    /// facing forward. Pass null to keep its own colours, or a material to override.
+    /// </summary>
+    public static void AttachRoverModel(Transform rover, Material overrideMat, float scale = 4.2f)
+    {
+        var body = InstantiateModel("rover", overrideMat, scale);
+        if (body == null)
+            return;
+
+        body.name = "Rover Model";
+        body.transform.SetParent(rover, true);
+        body.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+    }
+
+    /// <summary>Place one Kenney model in the world, keeping its own colours by default.</summary>
+    public static GameObject PlaceModel(string modelName, Vector3 position, float yaw, float scale,
+                                        Material overrideMat = null)
+    {
+        var go = InstantiateModel(modelName, overrideMat, scale);
+        if (go == null)
+            return null;
+
+        // InstantiateModel centres the model at the origin sitting on y=0; move it to
+        // the requested spot and face it.
+        go.transform.position += new Vector3(position.x, position.y, position.z);
+        go.transform.rotation = Quaternion.Euler(0f, yaw, 0f) * go.transform.rotation;
+        return go;
+    }
+
+    /// <summary>
+    /// Scatter Kenney rocks, meteors and craters through a rectangle, clear of a centre
+    /// lane, each keeping its own colour. The lit counterpart of ScatterRocks.
+    /// </summary>
+    public static void ScatterKenneyRocks(Vector3 center, float halfX, float halfZ,
+                                          float clearLane, int count, int seed)
+    {
+        var parent = new GameObject("Rocks");
+        var rng = new System.Random(seed);
+        var kinds = new[] { "rock", "rock_largeA", "rock_largeB", "rocks_smallA", "rocks_smallB", "meteor" };
+
+        for (var i = 0; i < count; i++)
+        {
+            var x = (float)(rng.NextDouble() * 2 - 1) * halfX;
+            var z = (float)(rng.NextDouble() * 2 - 1) * halfZ;
+            if (Mathf.Abs(x) < clearLane)
+                x += Mathf.Sign(x == 0 ? 1 : x) * clearLane;
+
+            var kind = kinds[rng.Next(kinds.Length)];
+            var scale = 2.5f + (float)(rng.NextDouble() * 4);
+            var rock = PlaceModel(kind, center + new Vector3(x, 0f, z),
+                                  (float)(rng.NextDouble() * 360), scale);
+            if (rock != null)
+                rock.transform.SetParent(parent.transform, true);
+        }
+    }
+
     /// <summary>Low-poly rocks scattered through a rectangle, kept clear of a centre lane.</summary>
     public static void ScatterRocks(Vector3 center, float halfX, float halfZ,
                                     float clearLane, int count, int seed)
@@ -175,6 +250,59 @@ public static class Environment
             rock.GetComponent<Renderer>().sharedMaterial = rockMat;
             UnityEngine.Object.DestroyImmediate(rock.GetComponent<Collider>());
         }
+    }
+
+    /// <summary>
+    /// Instantiate an imported Kenney model, optionally forcing one material across all
+    /// its parts. For the silhouette look we pass the black material and keep only the
+    /// shape; the model's own colours are not needed.
+    /// </summary>
+    public static GameObject InstantiateModel(string modelName, Material overrideMat, float scale = 1f)
+    {
+        var path = $"Assets/Kenney/Models/{modelName}.fbx";
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (prefab == null)
+        {
+            Debug.LogError($"[Environment] model not found: {path}");
+            return null;
+        }
+
+        var go = (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(prefab);
+        UnityEditor.PrefabUtility.UnpackPrefabInstance(go,
+            UnityEditor.PrefabUnpackMode.Completely, UnityEditor.InteractionMode.AutomatedAction);
+
+        if (overrideMat != null)
+        {
+            foreach (var r in go.GetComponentsInChildren<Renderer>())
+            {
+                var mats = new Material[r.sharedMaterials.Length];
+                for (var i = 0; i < mats.Length; i++)
+                    mats[i] = overrideMat;
+                r.sharedMaterials = mats;
+            }
+        }
+
+        foreach (var c in go.GetComponentsInChildren<Collider>())
+            UnityEngine.Object.DestroyImmediate(c);
+
+        go.transform.position = Vector3.zero;
+        go.transform.rotation = Quaternion.identity;
+        go.transform.localScale = Vector3.one * scale;
+
+        // Kenney models carry a baked pivot offset, so recentre by measured bounds:
+        // X and Z to the origin, the bottom onto the ground at y = 0. Then the caller can
+        // parent it and it sits where the transform is.
+        var renderers = go.GetComponentsInChildren<Renderer>();
+        if (renderers.Length > 0)
+        {
+            var b = renderers[0].bounds;
+            for (var i = 1; i < renderers.Length; i++)
+                b.Encapsulate(renderers[i].bounds);
+
+            go.transform.position += new Vector3(-b.center.x, -b.min.y, -b.center.z);
+        }
+
+        return go;
     }
 
     private static Material MakeSky(string key, Color horizon, Color zenith)
