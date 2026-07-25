@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using Dikdik.Commands;
 using Dikdik.Game;
+using Dikdik.Game.Voice;
 using Dikdik.Matching;
 using UnityEngine;
 using Whisper;
@@ -146,7 +147,7 @@ namespace Dikdik.Producers
             // because this is when they finished giving the command. Everything after
             // this line is us catching up, and the transport delay is measured from the
             // person rather than from our own processing.
-            var spokenAt = Time.time;
+            var spokenAt = CommandBus.Clock;
 
             // Restart straight away so we are listening again while whisper thinks.
             // Otherwise the player learns to wait for us, which is backwards.
@@ -157,7 +158,7 @@ namespace Dikdik.Producers
             // game's own voice arriving back through the microphone, or the player
             // talking over the briefing. Transcribing it would be the game hearing
             // itself, which is where the chaos came from.
-            if (SupervisorVoice.IsListeningBlocked)
+            if (VoiceArbiter.IsListeningBlocked || GamePause.IsPaused)
                 return;
 
             if (_busy)

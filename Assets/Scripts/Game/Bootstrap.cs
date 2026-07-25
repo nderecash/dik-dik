@@ -47,6 +47,10 @@ namespace Dikdik.Game
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
+            // Statics survive scene loads and, in the editor, survive leaving play mode.
+            // A pause left set by a previous run would soft-lock the next one.
+            GamePause.Reset();
+
             GameSettings.Load();
             LoadVocabulary();
         }

@@ -47,20 +47,26 @@ public static class BootSceneBuilder
 
         var comms = BuildConsole(root, out var camera);
 
-        // The supervisor's voice. Its own audio source, so its lines mix over the
-        // rover's beeps rather than cutting them off. Wired to the console so every
-        // spoken line is also captioned.
-        var supervisorObject = new GameObject("Supervisor");
-        supervisorObject.transform.SetParent(root.transform);
-        var supervisorSource = supervisorObject.AddComponent<AudioSource>();
-        supervisorSource.playOnAwake = false;
-        supervisorSource.spatialBlend = 0f;
+        // Every spoken line in the game goes through this one object and this one
+        // AudioSource. Control, the station's automated system and the rover all queue
+        // here, so two of them can never talk at once. It also owns the captions, so
+        // subtitles cannot drift from audio, and it owns the microphone gate, so the game
+        // never transcribes its own voice coming back through the speakers.
+        var voiceObject = new GameObject("Voice");
+        voiceObject.transform.SetParent(root.transform);
+        var voiceSource = voiceObject.AddComponent<AudioSource>();
+        voiceSource.playOnAwake = false;
+        voiceSource.spatialBlend = 0f;
 
-        var supervisor = supervisorObject.AddComponent<SupervisorVoice>();
-        var supervisorSerialized = new SerializedObject(supervisor);
-        SetRef(supervisorSerialized, "source", supervisorSource);
-        SetRef(supervisorSerialized, "comms", comms);
-        supervisorSerialized.ApplyModifiedPropertiesWithoutUndo();
+        var arbiter = voiceObject.AddComponent<Dikdik.Game.Voice.VoiceArbiter>();
+        var arbiterSerialized = new SerializedObject(arbiter);
+        SetRef(arbiterSerialized, "source", voiceSource);
+        SetRef(arbiterSerialized, "comms", comms);
+        arbiterSerialized.FindProperty("voiceFolder").stringValue = "Voice";
+        arbiterSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        // Decides when Control speaks. It no longer owns any audio.
+        voiceObject.AddComponent<SupervisorVoice>();
 
         // A low connection hum, always on. It says "you are still on the loop" so the
         // silence is never dead and the supervisor does not have to keep filling it. Its
@@ -73,6 +79,9 @@ public static class BootSceneBuilder
         ambient.playOnAwake = true;
         ambient.spatialBlend = 0f;
         ambient.volume = 0.35f;
+
+        if (ambient.clip == null)
+            Debug.LogError("[BootSceneBuilder] connection_loop.wav not found. Ambient will be silent.");
 
         var bootSerialized = new SerializedObject(bootstrap);
         SetRef(bootSerialized, "bus", bus);
@@ -151,6 +160,13 @@ public static class BootSceneBuilder
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.04f, 0.05f, 0.07f);
         camera.depth = -10;
+
+        // AddComponent<Camera> does not bring an AudioListener with it, unlike creating a
+        // camera from the editor menu. Without one the Boot scene has no listener at all,
+        // so the ambient loop starts playing into nothing on the very first frame and
+        // Unity logs a warning. Level cameras have their own; this one covers the gap
+        // before the first level loads.
+        cameraObject.AddComponent<AudioListener>();
 
         var canvasObject = new GameObject("Comms Canvas");
         canvasObject.transform.SetParent(root.transform);

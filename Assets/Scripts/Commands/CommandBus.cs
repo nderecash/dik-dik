@@ -82,10 +82,24 @@ namespace Dikdik.Commands
                 if (_inTransit.Count == 0 || transportDelay <= 0f)
                     return 1f;
 
-                var elapsed = Time.time - _inTransit[0].CreatedAt;
+                var elapsed = Clock - _inTransit[0].CreatedAt;
                 return Mathf.Clamp01(elapsed / transportDelay);
             }
         }
+
+        /// <summary>
+        /// The clock everything to do with the transport delay is measured against.
+        ///
+        /// <para>Not <c>Time.time</c>, for one specific reason: it must stop while the game
+        /// is paused. A command sent just before the player opens the settings screen has
+        /// to have the same distance left to travel when they close it. Measuring against
+        /// wall-clock time would mean that pausing for ten seconds delivers every queued
+        /// command the instant you unpause, which is both wrong and startling.</para>
+        ///
+        /// <para>Unscaled, so it is unaffected by the game speed setting. That split is
+        /// deliberate: the world slows down, the distance to the rover does not.</para>
+        /// </summary>
+        public static float Clock { get; private set; }
 
         private void Awake()
         {
@@ -165,10 +179,13 @@ namespace Dikdik.Commands
 
         private void Update()
         {
+            if (!Dikdik.Game.GamePause.IsPaused)
+                Clock += Time.unscaledDeltaTime;
+
             if (_inTransit.Count == 0)
                 return;
 
-            var now = Time.time;
+            var now = Clock;
 
             // Commands arrive in the order they were sent. A later command cannot
             // overtake an earlier one just because it was understood faster.
@@ -219,7 +236,7 @@ namespace Dikdik.Commands
         /// </summary>
         public void IssueScripted(IntentId id)
         {
-            Deliver(new Intent(id, CommandSource.Script, id.ToString(), 1f, Time.time));
+            Deliver(new Intent(id, CommandSource.Script, id.ToString(), 1f, Clock));
         }
     }
 }

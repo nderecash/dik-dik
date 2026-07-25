@@ -1,92 +1,64 @@
-using System.Collections.Generic;
-using System.Linq;
 using Dikdik.Commands;
+using Dikdik.Game.Voice;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace Dikdik.Game
 {
     /// <summary>
-    /// The other human on the loop. Plays the recorded supervisor lines at the right
-    /// moments, always with the caption on screen.
+    /// Decides <em>when</em> Control speaks. It no longer decides how.
     ///
-    /// <para>This is the one human voice in the game, and it is deliberately radio-degraded,
-    /// so the caption is not a courtesy: it carries the meaning while the audio carries the
-    /// mood. Every line plays through <see cref="CommsDisplay"/> so subtitles and audio can
-    /// never drift apart.</para>
+    /// <para>This used to own an AudioSource and play clips directly, which is how four
+    /// unrelated components ended up talking over each other. All of that moved to
+    /// <see cref="VoiceArbiter"/>. What is left is the part that was always the
+    /// interesting bit: the policy about how often a voice should interrupt someone who is
+    /// trying to play.</para>
     ///
-    /// <para>Lives in the persistent Boot scene. It re-finds the per-level components each
-    /// time a scene loads, because the rover and the level director are recreated per level
-    /// while this is not.</para>
+    /// <para>The policy is restraint. The console prints what it heard and the rover
+    /// pulses its light on every single command. If Control also spoke every time, the
+    /// voice would become noise and the player would stop hearing it. So an
+    /// acknowledgement happens once per level, a misheard line has a cooldown, and idle
+    /// chatter pushes itself further away each time it fires.</para>
     ///
-    /// <para>Lines within a group cycle rather than shuffle, the same rule as everywhere
-    /// else: random repeats itself in a way players read as the game not paying attention.</para>
+    /// <para>Lives in the persistent Boot scene and re-finds the per-level rover, director
+    /// and safety system on every scene load, because those are rebuilt per level and this
+    /// is not.</para>
     /// </summary>
     public class SupervisorVoice : MonoBehaviour
     {
-        [SerializeField] private AudioSource source;
-        [SerializeField] private CommsDisplay comms;
-
-        [Header("How often the optional lines are allowed")]
-        [Tooltip("Seconds between spoken not-understood lines. The console text still shows " +
-                 "every time; the voice chimes in less often so it does not nag.")]
+        [Header("Restraint")]
+        [Tooltip("Seconds between spoken not-understood lines. The console still shows " +
+                 "every one; the voice chimes in less often so it does not lecture.")]
         [SerializeField] private float missCooldown = 9f;
 
-        [Tooltip("Seconds of stillness before the first idle line. Each one after pushes " +
-                 "the next further out, so it stops repeating that it does not mind waiting.")]
+        [Tooltip("Seconds of stillness before the first idle line.")]
         [SerializeField] private float idleAfter = 40f;
 
-        [Tooltip("How much further out each idle line pushes the next. 1.6 means the gap " +
-                 "grows by 60 percent each time, up to the cap.")]
+        [Tooltip("How much further out each idle line pushes the next.")]
         [SerializeField] private float idleBackoff = 1.6f;
 
         [SerializeField] private float idleMaxInterval = 180f;
 
-        private readonly Dictionary<string, List<AudioClip>> _groups =
-            new Dictionary<string, List<AudioClip>>();
-        private readonly Dictionary<string, int> _cursor = new Dictionary<string, int>();
+        [Tooltip("Total idle seconds before Control drops the line to save power. The " +
+                 "console must show a visible way back when this happens.")]
+        [SerializeField] private float powerSaveAfter = 600f;
 
         private float _nextMissAllowed;
         private float _idleAt;
         private float _idleInterval;
+        private float _idleSince;
+        private bool _poweredDown;
         private bool _bootPlayed;
         private bool _ackThisLevel;
-        private bool _briefing;
 
-        /// <summary>
-        /// While Control is speaking, the game stops listening.
-        ///
-        /// Two reasons. The microphone hears the game's own voice through the speakers
-        /// and would transcribe Control talking to itself, and a player who starts giving
-        /// commands over the briefing turns the whole thing to noise. So the voice
-        /// producer checks this and drops anything captured while it is set. Extended a
-        /// little past each clip so the tail does not leak in.
-        /// </summary>
-        private static float _listenBlockedUntil;
-
-        public static bool IsListeningBlocked => Time.time < _listenBlockedUntil;
-
-        /// <summary>
-        /// Block listening for a while, used by the station voice on Level 2 so the mic
-        /// does not transcribe the automated system reading jargon through the speakers.
-        /// </summary>
-        public static void BlockListeningFor(float seconds)
-        {
-            _listenBlockedUntil = Mathf.Max(_listenBlockedUntil, Time.time + seconds);
-        }
-
-        /// <summary>True while the opening briefing is running. It can be skipped.</summary>
-        public bool IsBriefing => _briefing;
-
-        // Per-level components, re-found on each scene load.
         private RoverController _rover;
         private SimulationReset _simulation;
         private LevelDirector _director;
 
-        private void Awake()
-        {
-            LoadClips();
-        }
+        private static VoiceArbiter Arbiter => VoiceArbiter.Instance;
+
+        /// <summary>True while Control has dropped the line. The console shows the way back.</summary>
+        public bool IsPoweredDown => _poweredDown;
 
         private void OnEnable()
         {
@@ -113,33 +85,10 @@ namespace Dikdik.Game
             UnhookLevel();
         }
 
-        private void LoadClips()
-        {
-            foreach (var clip in Resources.LoadAll<AudioClip>("Voice"))
-            {
-                // Name is sup_<group>_<nn>. Group is the middle token.
-                var parts = clip.name.Split('_');
-                if (parts.Length < 3)
-                    continue;
-
-                var group = parts[1];
-                if (!_groups.TryGetValue(group, out var list))
-                {
-                    list = new List<AudioClip>();
-                    _groups[group] = list;
-                }
-
-                list.Add(clip);
-            }
-
-            // Sort each group by name so cycling follows the script order, not load order.
-            foreach (var list in _groups.Values)
-                list.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
-        }
-
-        // ---------------------------------------------------------------------
+        // ------------------------------------------------------------------
         // Per-level wiring
-        // ---------------------------------------------------------------------
+        // ------------------------------------------------------------------
+
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             UnhookLevel();
@@ -151,25 +100,22 @@ namespace Dikdik.Game
             _ackThisLevel = false;
             ResetIdle();
 
-            if (_rover != null)
-                _rover.Blocked += OnBlocked;
+            if (_rover != null) _rover.Blocked += OnBlocked;
+            if (_simulation != null) _simulation.Aborted += OnAborted;
 
-            if (_simulation != null)
-                _simulation.Aborted += OnAborted;
+            if (_director == null)
+                return;
 
-            if (_director != null)
-            {
-                _director.Completed += OnLevelComplete;
+            _director.Completed += OnLevelComplete;
 
-                // Boot lines are the tutorial. Play them the first time a level with a
-                // director comes up, once per session, whatever level that happens to be
-                // so a playtester jumping straight to level 3 still gets oriented.
-                if (!_bootPlayed)
-                {
-                    _bootPlayed = true;
-                    PlaySequence("boot");
-                }
-            }
+            // The opening plays on the first level that has a director, once per session,
+            // whichever level that happens to be. Someone jumping straight to level four
+            // still gets told what they are doing.
+            if (_bootPlayed)
+                return;
+
+            _bootPlayed = true;
+            SaySequenceWithFallback("open", "boot", SpeechPriority.Critical);
         }
 
         private void UnhookLevel()
@@ -183,187 +129,119 @@ namespace Dikdik.Game
             _director = null;
         }
 
-        // ---------------------------------------------------------------------
-        // Events
-        // ---------------------------------------------------------------------
+        // ------------------------------------------------------------------
+        // Reactions
+        // ------------------------------------------------------------------
+
         private void OnCommandIssued(Intent intent)
         {
+            WakeFromPowerSave();
             ResetIdle();
 
-            // One reassurance per level, on the first command that worked. After that
-            // the console's own feedback is enough and the supervisor stays quiet.
-            if (!_ackThisLevel)
-            {
-                _ackThisLevel = true;
-                PlayOne("ack");
-            }
+            // Once per level, on the first command that worked. After that the console's
+            // own feedback carries it and Control stays out of the way.
+            if (_ackThisLevel)
+                return;
+
+            _ackThisLevel = true;
+            Arbiter?.SayGroup("ack", SpeechPriority.Reactive);
         }
 
         private void OnNotUnderstood(Intent intent)
         {
+            WakeFromPowerSave();
             ResetIdle();
 
-            // The console already shows "I did not understand" every time. The supervisor
-            // speaks less often, so being misheard twice in a row does not turn into a
-            // lecture.
-            if (Time.time < _nextMissAllowed)
+            if (Time.unscaledTime < _nextMissAllowed)
                 return;
 
-            _nextMissAllowed = Time.time + missCooldown;
-            PlayOne("miss");
+            _nextMissAllowed = Time.unscaledTime + missCooldown;
+            Arbiter?.SayGroup("miss", SpeechPriority.Reactive);
         }
 
-        private void OnBlocked()
-        {
-            PlayOne("block");
-        }
+        private void OnBlocked() => Arbiter?.SayGroup("block", SpeechPriority.Reactive);
 
         private void OnAborted(string _)
         {
-            // SimulationReset passes its own text, but the voice system owns the paired
-            // audio and caption so they always match. The passed string is ignored.
-            PlayOne("reset");
+            // The rover's safety cutout backed it away from something. Essential: the
+            // player needs to know why it moved without being told to.
+            SayGroupWithFallback("cut", "reset", SpeechPriority.Beat, essential: true);
         }
 
-        private void OnLevelComplete()
-        {
-            PlayOne("done");
-        }
+        private void OnLevelComplete() =>
+            Arbiter?.SayGroup("done", SpeechPriority.Beat, Speaker.Control, essential: true);
+
+        // ------------------------------------------------------------------
+        // Idle
+        // ------------------------------------------------------------------
 
         private void Update()
         {
-            // The briefing can be skipped. Someone who has heard it, or a returning
-            // player, should not have to sit through it to start.
-            if (_briefing)
-            {
-                if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) ||
-                    Input.GetKeyDown(KeyCode.Escape))
-                    SkipBriefing();
-
-                return;
-            }
-
-            if (Time.time < _idleAt)
+            if (GamePause.IsPaused || _poweredDown || Arbiter == null)
                 return;
 
-            // Only when genuinely idle: nothing moving, nothing in flight.
+            if (Time.unscaledTime < _idleAt)
+                return;
+
             var bus = CommandBus.Instance;
             var quiet = (_rover == null || !_rover.IsMoving) &&
                         (bus == null || bus.InTransitCount == 0) &&
-                        (source == null || !source.isPlaying);
+                        !Arbiter.IsSpeaking;
 
             if (quiet)
             {
-                PlayOne("idle");
+                // Alone long enough that Control drops the line rather than keep talking
+                // into an empty room. The last idle line is the one that says so.
+                if (Time.unscaledTime - _idleSince > powerSaveAfter)
+                    _poweredDown = true;
 
-                // Each idle line pushes the next one further out. Standing still for a
-                // long stretch should not mean being told every forty seconds that the
-                // rover does not mind waiting. The ambient hum already says you are
-                // connected; this is just an occasional human check-in.
+                Arbiter.SayGroup("idle", SpeechPriority.Idle);
+
+                // Each one pushes the next further out, so standing still for a long
+                // stretch does not mean being told every forty seconds that the rover
+                // does not mind waiting.
                 _idleInterval = Mathf.Min(_idleInterval * idleBackoff, idleMaxInterval);
             }
 
-            _idleAt = Time.time + _idleInterval;
+            _idleAt = Time.unscaledTime + _idleInterval;
         }
 
         private void ResetIdle()
         {
             _idleInterval = idleAfter;
-            _idleAt = Time.time + _idleInterval;
+            _idleAt = Time.unscaledTime + _idleInterval;
+            _idleSince = Time.unscaledTime;
         }
 
-        // ---------------------------------------------------------------------
-        // Playback
-        // ---------------------------------------------------------------------
+        private void WakeFromPowerSave() => _poweredDown = false;
 
-        /// <summary>Play the next line in a group, cycling.</summary>
-        public void PlayOne(string group)
-        {
-            var clip = Next(group);
-            if (clip != null)
-                Play(clip);
-        }
+        // ------------------------------------------------------------------
+        // Group fallbacks
+        //
+        // The rework renames two groups: boot becomes open, reset becomes cut. Until the
+        // new lines are recorded the old ones still play, so the game stays voiced through
+        // the transition instead of going silent in the middle of a rewrite.
+        // ------------------------------------------------------------------
 
-        /// <summary>
-        /// Play every line of a group in order, back to back. Used for the boot sequence,
-        /// where the five lines are one continuous briefing.
-        /// </summary>
-        public void PlaySequence(string group)
+        private void SayGroupWithFallback(string primary, string fallback,
+                                          SpeechPriority priority, bool essential = false)
         {
-            if (!_groups.TryGetValue(group, out var list) || list.Count == 0)
+            if (Arbiter == null)
                 return;
 
-            StopAllCoroutines();
-            _briefing = true;
-            StartCoroutine(PlayAll(list));
+            var handle = Arbiter.SayGroup(primary, priority, Speaker.Control, essential);
+            if (handle.IsDone && !handle.WasDropped)
+                Arbiter.SayGroup(fallback, priority, Speaker.Control, essential);
         }
 
-        private System.Collections.IEnumerator PlayAll(List<AudioClip> list)
+        private void SaySequenceWithFallback(string primary, string fallback, SpeechPriority priority)
         {
-            foreach (var clip in list)
-            {
-                if (!_briefing)
-                    yield break;
+            if (Arbiter == null)
+                return;
 
-                Play(clip);
-
-                // Wait out the clip plus a breath, unscaled so a slowed game does not
-                // stretch the briefing.
-                var wait = clip.length + 0.4f;
-                var until = Time.realtimeSinceStartup + wait;
-                while (Time.realtimeSinceStartup < until)
-                {
-                    if (!_briefing)
-                        yield break;
-
-                    yield return null;
-                }
-            }
-
-            EndBriefing();
-        }
-
-        private void SkipBriefing()
-        {
-            StopAllCoroutines();
-            if (source != null)
-                source.Stop();
-
-            EndBriefing();
-        }
-
-        private void EndBriefing()
-        {
-            _briefing = false;
-            _listenBlockedUntil = 0f;
-            ResetIdle();
-
-            if (comms != null)
-                comms.ClearSupervisor();
-        }
-
-        private AudioClip Next(string group)
-        {
-            if (!_groups.TryGetValue(group, out var list) || list.Count == 0)
-                return null;
-
-            var index = _cursor.TryGetValue(group, out var c) ? c : 0;
-            var clip = list[index % list.Count];
-            _cursor[group] = index + 1;
-            return clip;
-        }
-
-        private void Play(AudioClip clip)
-        {
-            if (source != null)
-                source.PlayOneShot(clip);
-
-            // Stop listening for the length of the clip plus a tail, so the game does not
-            // transcribe its own voice coming back through the microphone.
-            _listenBlockedUntil = Mathf.Max(_listenBlockedUntil, Time.time + clip.length + 0.6f);
-
-            if (comms != null)
-                comms.ShowSupervisorLine(VoiceLines.Caption(clip.name), _briefing);
+            var handle = Arbiter.SaySequence(primary, priority);
+            if (handle.IsDone && !handle.WasDropped)
+                Arbiter.SaySequence(fallback, priority);
         }
     }
 }

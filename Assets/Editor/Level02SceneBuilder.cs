@@ -123,10 +123,10 @@ public static class Level02SceneBuilder
         SetRef(lightSer, "rover", controller);
         lightSer.ApplyModifiedPropertiesWithoutUndo();
 
-        // Station audio source, shared by the beats.
-        var stationObject = new GameObject("Station");
-        var stationSource = stationObject.AddComponent<AudioSource>();
-        stationSource.playOnAwake = false; stationSource.spatialBlend = 0f; stationSource.volume = 0.9f;
+        // No station AudioSource any more. The station used to speak through its own
+        // source with nothing coordinating it against the supervisor, which is how three
+        // voices ended up talking at once on this level. Everything spoken now goes
+        // through the one arbiter in the Boot scene.
 
         // Level plumbing.
         var directorObject = new GameObject("Level Director");
@@ -154,25 +154,21 @@ public static class Level02SceneBuilder
         doorSer.ApplyModifiedPropertiesWithoutUndo();
 
         MakeBeat("Beat Open", new Vector3(0f, 1f, 6f), "station_01",
-                 "Actuate the primary egress barrier via the manual override subsystem.",
-                 stationSource);
+                 "Actuate the primary egress barrier via the manual override subsystem.");
 
         // Beats 2 and 4 are the turns; use junctions so the rover stops for the choice.
         MakeJunction("Junction Left", corners[1], 1, roverLight, audio, pingClip);
         MakeBeat("Beat Left", corners[1] + new Vector3(0f, 0.6f, -4f), "station_02",
-                 "Execute a ninety degree rotational adjustment about the port axis.",
-                 stationSource);
+                 "Execute a ninety degree rotational adjustment about the port axis.");
 
         // Beat 3: keep going, on the west stretch.
         var westMid = Vector3.Lerp(corners[1], corners[2], 0.5f);
         MakeBeat("Beat Forward", westMid + new Vector3(0f, 0.6f, 0f), "station_03",
-                 "Maintain forward translational momentum along the current heading vector, disregarding prior directives.",
-                 stationSource);
+                 "Maintain forward translational momentum along the current heading vector, disregarding prior directives.");
 
         MakeJunction("Junction Right", corners[2], 2, roverLight, audio, pingClip);
         MakeBeat("Beat Right", corners[2] + new Vector3(4f, 0.6f, 0f), "station_04",
-                 "Perform a starboard oriented directional realignment of ninety degrees, authorization pending.",
-                 stationSource);
+                 "Perform a starboard oriented directional realignment of ninety degrees, authorization pending.");
 
         // Exit.
         var exit = new GameObject("Exit");
@@ -228,7 +224,7 @@ public static class Level02SceneBuilder
         Debug.Log($"[Level02SceneBuilder] Wrote {ScenePath}, 4 beats, corridor to {corners[corners.Count - 1]}");
     }
 
-    private static void MakeBeat(string name, Vector3 pos, string clip, string jargon, AudioSource station)
+    private static void MakeBeat(string name, Vector3 pos, string clip, string jargon)
     {
         var beat = new GameObject(name);
         beat.transform.position = pos;
@@ -240,7 +236,6 @@ public static class Level02SceneBuilder
         var ser = new SerializedObject(comp);
         ser.FindProperty("stationClip").stringValue = clip;
         ser.FindProperty("jargon").stringValue = jargon;
-        SetRef(ser, "stationSource", station);
         ser.ApplyModifiedPropertiesWithoutUndo();
     }
 

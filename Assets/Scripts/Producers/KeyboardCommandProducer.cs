@@ -70,8 +70,19 @@ namespace Dikdik.Producers
         private void Update()
         {
             var keyboard = Keyboard.current;
-            if (keyboard == null)
+            if (keyboard == null || Dikdik.Game.GamePause.IsPaused)
                 return;
+
+            // While a skippable briefing is running, the first key press skips it rather
+            // than also firing whatever command that key is bound to. Space used to do
+            // both at once: skip the briefing and tell the rover to stop.
+            if (Dikdik.Game.Voice.VoiceArbiter.IsInputBlocked)
+            {
+                if (keyboard.anyKey.wasPressedThisFrame)
+                    Dikdik.Game.Voice.VoiceArbiter.Instance?.SkipCurrentSequence();
+
+                return;
+            }
 
             foreach (var pair in _bindings)
             {
@@ -95,7 +106,7 @@ namespace Dikdik.Producers
                     // has already spent most of that budget inside whisper. Neither
                     // route reaches the rover first.
                     CommandProduced?.Invoke(
-                        new Intent(pair.Key, CommandSource.Keyboard, pair.Value.ToString(), 1f, Time.time));
+                        new Intent(pair.Key, CommandSource.Keyboard, pair.Value.ToString(), 1f, CommandBus.Clock));
                 }
             }
         }

@@ -1,5 +1,6 @@
 using System.Collections;
 using Dikdik.Commands;
+using Dikdik.Game.Voice;
 using UnityEngine;
 
 namespace Dikdik.Game
@@ -25,8 +26,6 @@ namespace Dikdik.Game
         [TextArea]
         [SerializeField] private string jargon = "";
 
-        [SerializeField] private AudioSource stationSource;
-
         private bool _fired;
 
         private void Awake()
@@ -45,28 +44,24 @@ namespace Dikdik.Game
 
         private IEnumerator Play()
         {
+            var arbiter = VoiceArbiter.Instance;
+            if (arbiter == null)
+                yield break;
+
             var clip = Resources.Load<AudioClip>($"Station/{stationClip}");
-            var comms = Bootstrap.Instance != null ? Bootstrap.Instance.Comms : null;
-            var length = clip != null ? clip.length : 2.5f;
+            if (clip == null)
+                yield break;
 
-            // Station reads the jargon. Stop listening so the mic does not transcribe it.
-            SupervisorVoice.BlockListeningFor(length + 0.6f);
+            // Station reads the procedure, then Control translates it. Both go into one
+            // queue, so the ordering stops being enforced by a hand-tuned timer and
+            // becomes structural: two entries, in order, and nothing can wedge between
+            // them. Both are Essential because the translation is the only usable version
+            // of the instruction and the player would be stuck without it.
+            yield return arbiter.Say(SpeechLine.Make(
+                clip, jargon, Speaker.Station, SpeechPriority.Beat, essential: true));
 
-            if (stationSource != null && clip != null)
-                stationSource.PlayOneShot(clip);
-
-            if (comms != null)
-                comms.ShowStationLine(jargon);
-
-            var until = Time.realtimeSinceStartup + length + 0.6f;
-            while (Time.realtimeSinceStartup < until)
-                yield return null;
-
-            // The supervisor translates. This plays the next recorded "plain" line in
-            // order and blocks listening for its own length.
-            var supervisor = FindAnyObjectByType<SupervisorVoice>();
-            if (supervisor != null)
-                supervisor.PlayOne("plain");
+            yield return arbiter.SayGroup("plain", SpeechPriority.Beat,
+                                          Speaker.Control, essential: true);
         }
     }
 }

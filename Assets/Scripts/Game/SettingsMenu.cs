@@ -54,6 +54,27 @@ namespace Dikdik.Game
         private IntentId _rebinding = IntentId.None;
         private IntentId _teaching = IntentId.None;
         private string _teachText = string.Empty;
+        private bool _confirmingQuit;
+
+        private void Close()
+        {
+            _open = false;
+            _confirmingQuit = false;
+            GamePause.IsPaused = false;
+            GameSettings.Flush();
+        }
+
+        private void Quit()
+        {
+            GameSettings.Flush();
+            GamePause.IsPaused = false;
+
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
         private Vector2 _scroll;
 
         private KeyboardCommandProducer _keyboard;
@@ -74,6 +95,13 @@ namespace Dikdik.Game
                 else
                 {
                     _open = !_open;
+
+                    // Opening the panel now actually pauses the game. It used to only
+                    // flip this bool: the rover kept driving, commands kept crossing the
+                    // gap, and Control carried on talking over the settings screen. The
+                    // property below was even documented as "gameplay can pause on this"
+                    // and nothing ever read it.
+                    GamePause.IsPaused = _open;
 
                     // Commit to disk when the panel closes rather than on every slider
                     // frame.
@@ -178,10 +206,32 @@ namespace Dikdik.Game
                 GameSettings.ResetToDefaults();
 
             if (GUILayout.Button("Close", button))
+                Close();
+
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+
+            // Two presses to quit, with no confirmation dialog to trap anybody. The
+            // second button only appears once the first is pressed, so it cannot be hit
+            // by accident, and clicking anywhere else in the panel forgets it.
+            if (!_confirmingQuit)
             {
-                _open = false;
-                GameSettings.Flush();
+                if (GUILayout.Button("Quit game", button, GUILayout.Width(160)))
+                    _confirmingQuit = true;
             }
+            else
+            {
+                GUILayout.Label("Really quit?", body);
+                if (GUILayout.Button("Yes, quit", button, GUILayout.Width(130)))
+                    Quit();
+
+                if (GUILayout.Button("No", button, GUILayout.Width(80)))
+                    _confirmingQuit = false;
+            }
+
             GUILayout.EndHorizontal();
 
             GUILayout.EndArea();
@@ -329,8 +379,7 @@ namespace Dikdik.Game
                 if (!GUILayout.Button(level.Label, button))
                     continue;
 
-                _open = false;
-                GameSettings.Flush();
+                Close();
                 UnityEngine.SceneManagement.SceneManager.LoadScene(level.Scene);
                 return;
             }

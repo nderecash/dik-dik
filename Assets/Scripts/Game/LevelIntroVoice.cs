@@ -1,35 +1,26 @@
-using System.Collections;
+using Dikdik.Game.Voice;
 using UnityEngine;
 
 namespace Dikdik.Game
 {
     /// <summary>
-    /// Plays a level's own supervisor lines when it starts: the console fault on the
-    /// jammed-key level, the station translations on the clear-language level, the rim
-    /// speech at the end.
+    /// Plays a level's own supervisor lines when it starts: what this stretch of the relay
+    /// line is, the console fault, the station's jargon.
     ///
-    /// Waits out the boot briefing first. If someone jumps straight to this level, they
-    /// get the tutorial, and only once it finishes does the level's own intro play, so
-    /// the two never talk over each other.
+    /// <para>This used to poll a flag waiting for the opening briefing to finish, with a
+    /// hand-tuned half-second beat afterwards, and it still managed to talk over the
+    /// briefing whenever the player skipped it. Now it asks the arbiter to say the group
+    /// and stops. Both are Critical, so they queue, and "wait for the briefing" stops
+    /// being a special case anybody has to implement and becomes what a queue does.</para>
     /// </summary>
     public class LevelIntroVoice : MonoBehaviour
     {
-        [Tooltip("Which recorded group to play: console, plain, final, ...")]
-        [SerializeField] private string group = "console";
+        [Tooltip("Which recorded group to play: sector, console, plain...")]
+        [SerializeField] private string group = "sector";
 
-        private IEnumerator Start()
+        private void Start()
         {
-            var supervisor = FindAnyObjectByType<SupervisorVoice>();
-            if (supervisor == null)
-                yield break;
-
-            while (supervisor.IsBriefing)
-                yield return null;
-
-            // A short beat after any briefing, so it does not run straight into this.
-            yield return new WaitForSecondsRealtime(0.5f);
-
-            supervisor.PlaySequence(group);
+            VoiceArbiter.Instance?.SaySequence(group, SpeechPriority.Critical);
         }
     }
 }

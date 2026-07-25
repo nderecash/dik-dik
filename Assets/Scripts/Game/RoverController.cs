@@ -154,6 +154,9 @@ namespace Dikdik.Game
 
         private void Update()
         {
+            if (GamePause.IsPaused)
+                return;
+
             // The rover lives in game time, which is real time scaled by the speed
             // setting. Everything it does uses this one delta, so turning, accelerating,
             // coasting and moving all slow together. The transport delay in CommandBus

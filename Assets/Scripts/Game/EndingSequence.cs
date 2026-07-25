@@ -84,15 +84,16 @@ namespace Dikdik.Game
 
         private IEnumerator PlayFinalLine()
         {
-            if (_supervisor != null)
-                _supervisor.PlayOne("final");
+            var arbiter = Dikdik.Game.Voice.VoiceArbiter.Instance;
+            if (arbiter == null)
+                yield break;
 
-            // Let it set the listening block, then wait the line out.
-            yield return null;
-            while (SupervisorVoice.IsListeningBlocked)
-                yield return null;
-
-            yield return new WaitForSecondsRealtime(0.3f);
+            // Was: fire the clip, then poll a global "is the mic blocked" flag as a proxy
+            // for "has it finished". Any unrelated speech extended that flag and a skip
+            // zeroed it, so this waited for the wrong thing in both directions. The
+            // handle knows when its own line is done.
+            yield return arbiter.SayGroup("final", Dikdik.Game.Voice.SpeechPriority.Critical,
+                                          Dikdik.Game.Voice.Speaker.Control, essential: true);
         }
 
         private void OnCommand(Intent intent)
