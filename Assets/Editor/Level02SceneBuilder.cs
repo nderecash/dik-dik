@@ -136,6 +136,11 @@ public static class Level02SceneBuilder
         SetRef(simSer, "rover", controller);
         simSer.ApplyModifiedPropertiesWithoutUndo();
 
+        var intro = directorObject.AddComponent<LevelIntroVoice>();
+        var introSer = new SerializedObject(intro);
+        introSer.FindProperty("clipName").stringValue = "sup_sector_02";
+        introSer.ApplyModifiedPropertiesWithoutUndo();
+
         var pingClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/junction_ping.wav");
 
         // Beat 1: the door. "Actuate the primary egress barrier..." -> "Open the door."
@@ -204,7 +209,7 @@ public static class Level02SceneBuilder
         directorSer.FindProperty("levelNumber").intValue = 2;
         directorSer.FindProperty("levelName").stringValue = "Two supervisors";
         directorSer.FindProperty("guideline").stringValue = "Use simple clear language";
-        directorSer.FindProperty("nextSceneName").stringValue = "";
+        directorSer.FindProperty("nextSceneName").stringValue = "Level03";
         SetRef(directorSer, "simulation", simulation);
         var allowed = directorSer.FindProperty("allowedIntents");
         allowed.arraySize = 5;

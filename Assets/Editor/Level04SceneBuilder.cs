@@ -99,6 +99,7 @@ public static class Level04SceneBuilder
 
         var intro = systems.AddComponent<LevelIntroVoice>();
         var introSerialized = new SerializedObject(intro);
+        introSerialized.FindProperty("clipName").stringValue = "sup_sector_04";
         introSerialized.FindProperty("group").stringValue = "console";
         introSerialized.ApplyModifiedPropertiesWithoutUndo();
 
@@ -143,7 +144,7 @@ public static class Level04SceneBuilder
         directorSerialized.FindProperty("levelName").stringValue = "The jammed key";
         directorSerialized.FindProperty("guideline").stringValue =
             "Allow controls to be remapped / reconfigured";
-        directorSerialized.FindProperty("nextSceneName").stringValue = "";
+        directorSerialized.FindProperty("nextSceneName").stringValue = "Level05";
         SetRef(directorSerialized, "simulation", simulation);
 
         var allowed = directorSerialized.FindProperty("allowedIntents");

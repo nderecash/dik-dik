@@ -59,12 +59,18 @@ namespace Dikdik.Game
         {
             if (simulation != null)
                 simulation.Restarted += OnSimulationRestarted;
+
+            if (CommandBus.Instance != null)
+                CommandBus.Instance.CommandIssued += OnCommandForContinue;
         }
 
         private void OnDisable()
         {
             if (simulation != null)
                 simulation.Restarted -= OnSimulationRestarted;
+
+            if (CommandBus.Instance != null)
+                CommandBus.Instance.CommandIssued -= OnCommandForContinue;
 
             // Never leave our vocabulary restriction behind for the next scene.
             if (CommandBus.Instance != null)
@@ -108,11 +114,52 @@ namespace Dikdik.Game
 
             if (string.IsNullOrWhiteSpace(nextSceneName))
             {
-                Debug.Log($"[LevelDirector] Level {levelNumber} complete, no next scene set.");
+                // The last sector. Nothing to move on to.
+                Bootstrap.Instance?.Comms?.ShowPrompt("Relay line complete. That's all of it.", "");
                 yield break;
             }
 
+            // Wait for the player rather than yanking them into the next sector. They
+            // just finished something and may want a moment; and being moved somewhere
+            // without agreeing to it is a small version of exactly what this game is
+            // about not doing.
+            _awaitingContinue = true;
+            Bootstrap.Instance?.Comms?.ShowPrompt(
+                "Sector clear.", "Say \"go\" when you're ready for the next stretch.");
+
+            while (_awaitingContinue)
+                yield return null;
+
+            Bootstrap.Instance?.Comms?.ClearPrompt();
             SceneManager.LoadScene(nextSceneName);
+        }
+
+        private bool _awaitingContinue;
+
+        /// <summary>
+        /// Any forward command moves to the next sector. Deliberately generous: go,
+        /// continue, carry on and keep going all already resolve to Go, and a player who
+        /// says something else entirely gets the usual "did not catch that" rather than
+        /// being stuck on a screen with one magic word.
+        /// </summary>
+        private void OnCommandForContinue(Intent intent)
+        {
+            if (!_awaitingContinue)
+                return;
+
+            if (intent.Id == IntentId.Go || intent.Id == IntentId.Wake)
+                _awaitingContinue = false;
+        }
+
+        private void Update()
+        {
+            // Keyboard parity: the same beat is available without speaking. Not while
+            // the settings menu is up, or one press would dismiss a menu and skip a
+            // sector at the same time.
+            if (_awaitingContinue && !GamePause.IsPaused &&
+                (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) ||
+                 Input.GetKeyDown(KeyCode.Space)))
+                _awaitingContinue = false;
         }
 
         private void OnSimulationRestarted()

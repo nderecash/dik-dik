@@ -247,6 +247,43 @@ namespace Dikdik.Game
             _clearAt = 0f;
         }
 
+        private static readonly Color PromptTint = new Color(1f, 0.85f, 0.45f);
+
+        /// <summary>
+        /// The game asking the player for something and then waiting: end of a sector,
+        /// end of the mission. No timeout, because there is nothing to time out to. The
+        /// player decides when this moves on, which is the same contract as the rest of
+        /// the game.
+        /// </summary>
+        public void ShowPrompt(string headline, string instruction)
+        {
+            ShowSpeaker("CONTROL", PromptTint);
+
+            if (heardText != null)
+            {
+                heardText.text = headline;
+                heardText.color = GameSettings.HighContrast ? Color.white : new Color(1f, 0.95f, 0.85f);
+            }
+
+            if (statusText != null)
+            {
+                // Not gated on the subtitles setting. This one is an instruction, not a
+                // transcript, and a player who turned subtitles off has not asked to be
+                // left on a screen with no way off it.
+                statusText.text = instruction;
+                statusText.color = GameSettings.HighContrast ? Color.white : PromptTint;
+            }
+
+            _clearAt = 0f;
+        }
+
+        /// <summary>Take the prompt down once the player has answered it.</summary>
+        public void ClearPrompt()
+        {
+            _clearAt = 0f;
+            ShowResting();
+        }
+
         /// <summary>Called by the voice producer when speech starts and stops.</summary>
         public void SetListening(bool listening)
         {

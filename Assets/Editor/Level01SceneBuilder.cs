@@ -290,12 +290,17 @@ public static class Level01SceneBuilder
         SetRef(simulationSerialized, "rover", controller);
         simulationSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        var intro = directorObject.AddComponent<LevelIntroVoice>();
+        var introSerialized = new SerializedObject(intro);
+        introSerialized.FindProperty("clipName").stringValue = "sup_sector_01";
+        introSerialized.ApplyModifiedPropertiesWithoutUndo();
+
         var directorSerialized = new SerializedObject(director);
         directorSerialized.FindProperty("levelNumber").intValue = 1;
         directorSerialized.FindProperty("levelName").stringValue = "Dust corridor";
         directorSerialized.FindProperty("guideline").stringValue =
             "Ensure no essential information is conveyed by sounds alone";
-        directorSerialized.FindProperty("nextSceneName").stringValue = "";
+        directorSerialized.FindProperty("nextSceneName").stringValue = "Level02";
         SetRef(directorSerialized, "simulation", simulation);
 
         var allowed = directorSerialized.FindProperty("allowedIntents");

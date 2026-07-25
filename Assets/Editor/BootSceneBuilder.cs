@@ -78,7 +78,10 @@ public static class BootSceneBuilder
         ambient.loop = true;
         ambient.playOnAwake = true;
         ambient.spatialBlend = 0f;
-        ambient.volume = 0.35f;
+        // Quiet. The clip peaks near full scale now, so this is doing real work: it is a
+        // bed you notice only when it stops, not a sound you listen to. The first attempt
+        // at fixing the inaudible hum overshot and made it a presence in the mix.
+        ambient.volume = 0.11f;
 
         if (ambient.clip == null)
             Debug.LogError("[BootSceneBuilder] connection_loop.wav not found. Ambient will be silent.");

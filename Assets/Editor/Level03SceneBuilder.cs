@@ -109,6 +109,11 @@ public static class Level03SceneBuilder
         SetRef(simulationSerialized, "rover", controller);
         simulationSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        var intro = directorObject.AddComponent<LevelIntroVoice>();
+        var introSerialized = new SerializedObject(intro);
+        introSerialized.FindProperty("clipName").stringValue = "sup_sector_03";
+        introSerialized.ApplyModifiedPropertiesWithoutUndo();
+
         // ------------------------------------------------------------------
         // Decision points and the crevasses beyond them
         // ------------------------------------------------------------------
@@ -232,7 +237,7 @@ public static class Level03SceneBuilder
         directorSerialized.FindProperty("levelName").stringValue = "Night side";
         directorSerialized.FindProperty("guideline").stringValue =
             "Provide high contrast between text/UI and background";
-        directorSerialized.FindProperty("nextSceneName").stringValue = "";
+        directorSerialized.FindProperty("nextSceneName").stringValue = "Level04";
         SetRef(directorSerialized, "simulation", simulation);
 
         var allowed = directorSerialized.FindProperty("allowedIntents");

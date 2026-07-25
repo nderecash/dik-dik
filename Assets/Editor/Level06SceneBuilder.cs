@@ -71,6 +71,11 @@ public static class Level06SceneBuilder
         SetRef(simulationSerialized, "rover", controller);
         simulationSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        var intro = directorObject.AddComponent<LevelIntroVoice>();
+        var introSerialized = new SerializedObject(intro);
+        introSerialized.FindProperty("clipName").stringValue = "sup_sector_06";
+        introSerialized.ApplyModifiedPropertiesWithoutUndo();
+
         // The dormant rovers on the plain, a loose grid beyond the rim.
         var field = new GameObject("Dormant Field");
         var dormant = new List<DormantRover>();

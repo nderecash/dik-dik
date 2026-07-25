@@ -167,6 +167,21 @@ namespace Dikdik.Game.Voice
         }
 
         /// <summary>
+        /// Say one named clip. For lines that belong to a specific level rather than to a
+        /// cycling pool — the sector introductions, where level three wants its own line
+        /// and not simply the next one in the list.
+        /// </summary>
+        public SpeechHandle SayClip(string clipName, SpeechPriority priority,
+                                    Speaker speaker = Speaker.Control, bool essential = false)
+        {
+            var clip = Resources.Load<AudioClip>($"{voiceFolder}/{clipName}");
+            if (clip == null)
+                return SpeechHandle.Finished();
+
+            return Say(SpeechLine.Make(clip, VoiceLines.Caption(clipName), speaker, priority, essential));
+        }
+
+        /// <summary>
         /// Say every line of a group back to back, as one continuous piece of speech.
         ///
         /// Used for briefings. Because these queue like anything else, "wait for the

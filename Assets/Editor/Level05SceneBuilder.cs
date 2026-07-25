@@ -112,6 +112,11 @@ public static class Level05SceneBuilder
         SetRef(simulationSerialized, "rover", controller);
         simulationSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        var intro = directorObject.AddComponent<LevelIntroVoice>();
+        var introSerialized = new SerializedObject(intro);
+        introSerialized.FindProperty("clipName").stringValue = "sup_sector_05";
+        introSerialized.ApplyModifiedPropertiesWithoutUndo();
+
         // ------------------------------------------------------------------
         // Stop pads
         // ------------------------------------------------------------------
@@ -189,7 +194,7 @@ public static class Level05SceneBuilder
         directorSerialized.FindProperty("levelName").stringValue = "The slope";
         directorSerialized.FindProperty("guideline").stringValue =
             "Include an option to adjust the game speed";
-        directorSerialized.FindProperty("nextSceneName").stringValue = "";
+        directorSerialized.FindProperty("nextSceneName").stringValue = "Level06";
         SetRef(directorSerialized, "simulation", simulation);
 
         var allowed = directorSerialized.FindProperty("allowedIntents");
