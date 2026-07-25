@@ -16,7 +16,7 @@ namespace Dikdik.Game
     /// last one and reverse back up to it. It costs time, never a life.
     /// </summary>
     [RequireComponent(typeof(Collider))]
-    public class StopMark : MonoBehaviour
+    public class StopMark : MonoBehaviour, IResettable
     {
         [Header("Feedback")]
         [SerializeField] private Renderer pad;
@@ -93,6 +93,14 @@ namespace Dikdik.Game
             IsRegistered = false;
             _roverInside = null;
             Paint(waitingColour);
+        }
+
+        /// <summary>Called by SimulationReset. Level 5 is the level about rehearsing a
+        /// stop you cannot land first time, so a pad that stayed registered through a
+        /// restart made the mechanic unplayable on the second attempt.</summary>
+        public void ResetForSimulation()
+        {
+            ResetMark();
         }
     }
 }

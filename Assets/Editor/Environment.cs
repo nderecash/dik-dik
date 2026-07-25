@@ -100,7 +100,14 @@ public static class Environment
             var arc = radius * (Mathf.PI * 2f / segments) * 1.6f;
             block.transform.localScale = new Vector3(arc, height, 10f);
             block.GetComponent<Renderer>().sharedMaterial = ridge;
-            UnityEngine.Object.DestroyImmediate(block.GetComponent<Collider>());
+
+            // The collider stays. This ring is the edge of the world.
+            //
+            // Every level's route is under 60 units long inside a rim at radius 120 to
+            // 130, so a player will only ever meet this by deliberately driving away from
+            // the mission, and when they do the rover stops against a hill and says so.
+            // That is a better answer than an invisible wall, and a much better one than
+            // the previous answer, which was to keep going until the level was a dot.
         }
     }
 
@@ -177,9 +184,9 @@ public static class Environment
 
     /// <summary>Place one Kenney model in the world, keeping its own colours by default.</summary>
     public static GameObject PlaceModel(string modelName, Vector3 position, float yaw, float scale,
-                                        Material overrideMat = null)
+                                        Material overrideMat = null, bool solid = false)
     {
-        var go = InstantiateModel(modelName, overrideMat, scale);
+        var go = InstantiateModel(modelName, overrideMat, scale, solid);
         if (go == null)
             return null;
 
@@ -210,8 +217,12 @@ public static class Environment
 
             var kind = kinds[rng.Next(kinds.Length)];
             var scale = 2.5f + (float)(rng.NextDouble() * 4);
+
+            // Solid. A rock the rover drives straight through is not scenery, it is a
+            // hole in the fiction, and the whole premise is a machine that reacts to
+            // what is actually in front of it.
             var rock = PlaceModel(kind, center + new Vector3(x, 0f, z),
-                                  (float)(rng.NextDouble() * 360), scale);
+                                  (float)(rng.NextDouble() * 360), scale, solid: true);
             if (rock != null)
                 rock.transform.SetParent(parent.transform, true);
         }
@@ -257,7 +268,8 @@ public static class Environment
     /// its parts. For the silhouette look we pass the black material and keep only the
     /// shape; the model's own colours are not needed.
     /// </summary>
-    public static GameObject InstantiateModel(string modelName, Material overrideMat, float scale = 1f)
+    public static GameObject InstantiateModel(string modelName, Material overrideMat, float scale = 1f,
+                                              bool solid = false)
     {
         var path = $"Assets/Kenney/Models/{modelName}.fbx";
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
@@ -282,6 +294,9 @@ public static class Environment
             }
         }
 
+        // The imported mesh colliders always go. They are per-part, convex-unfriendly and
+        // sized for a model that has not been scaled yet. What replaces them, if anything,
+        // is one measured box below.
         foreach (var c in go.GetComponentsInChildren<Collider>())
             UnityEngine.Object.DestroyImmediate(c);
 
@@ -300,9 +315,43 @@ public static class Environment
                 b.Encapsulate(renderers[i].bounds);
 
             go.transform.position += new Vector3(-b.center.x, -b.min.y, -b.center.z);
+
+            if (solid)
+                AddMeasuredBox(go, b);
         }
 
         return go;
+    }
+
+    /// <summary>
+    /// One box collider covering the model, in the model's local space.
+    ///
+    /// <para>A box and not the imported mesh colliders. The rover's obstacle probe is a
+    /// short raycast, and a rock that stops the rover on its silhouette but lets the probe
+    /// slip through a gap between two mesh parts is worse than a rock that is slightly
+    /// bigger than it looks. Predictable beats accurate here.</para>
+    ///
+    /// <para>Inset slightly so the collider sits just inside the visible shape. A prop the
+    /// rover stops short of reads as caution; a prop the rover visibly overlaps before
+    /// stopping reads as a bug.</para>
+    /// </summary>
+    private static void AddMeasuredBox(GameObject go, Bounds worldBounds)
+    {
+        var lossy = go.transform.lossyScale;
+
+        // worldBounds was measured after scaling but before the recentre, so its size is
+        // already correct in world units. Divide back out to local space, because that is
+        // what BoxCollider stores.
+        var local = new Vector3(
+            worldBounds.size.x / Mathf.Max(0.0001f, lossy.x),
+            worldBounds.size.y / Mathf.Max(0.0001f, lossy.y),
+            worldBounds.size.z / Mathf.Max(0.0001f, lossy.z));
+
+        // After the recentre the model sits centred on x and z with its base at y = 0,
+        // so the box's centre is half its height straight up.
+        var box = go.AddComponent<BoxCollider>();
+        box.size = local * 0.9f;
+        box.center = new Vector3(0f, local.y * 0.5f, 0f);
     }
 
     private static Material MakeSky(string key, Color horizon, Color zenith)

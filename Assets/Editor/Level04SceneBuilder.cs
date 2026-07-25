@@ -87,7 +87,9 @@ public static class Level04SceneBuilder
         SetRef(doorSerialized, "rover", rover.transform);
         SetRef(doorSerialized, "indicator", doorRenderer);
         doorSerialized.FindProperty("reach").floatValue = 8f;
-        doorSerialized.FindProperty("openOffset").vector3Value = new Vector3(0f, WallHeight + 0.5f, 0f);
+        // Down, into the floor, not up. The follow camera sits at y 6.9 and the door used
+        // to rise into y 3.9-7.3, so opening it drove a green slab through the lens.
+        doorSerialized.FindProperty("openOffset").vector3Value = new Vector3(0f, -(WallHeight + 0.5f), 0f);
         doorSerialized.ApplyModifiedPropertiesWithoutUndo();
 
         // The jam and the level's spoken intro.

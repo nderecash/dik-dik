@@ -155,7 +155,9 @@ public static class Level02SceneBuilder
         SetRef(doorSer, "rover", rover.transform);
         SetRef(doorSer, "indicator", doorRenderer);
         doorSer.FindProperty("reach").floatValue = 8f;
-        doorSer.FindProperty("openOffset").vector3Value = new Vector3(0f, WallHeight + 0.5f, 0f);
+        // Down, into the floor. See Level04SceneBuilder: opening upward puts the door
+        // through the camera.
+        doorSer.FindProperty("openOffset").vector3Value = new Vector3(0f, -(WallHeight + 0.5f), 0f);
         doorSer.ApplyModifiedPropertiesWithoutUndo();
 
         MakeBeat("Beat Open", new Vector3(0f, 1f, 6f), "station_01",

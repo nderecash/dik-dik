@@ -25,7 +25,7 @@ namespace Dikdik.Game
     /// penalty for leaving it waiting. It will sit there until spoken to, which is the
     /// most in-character thing it could possibly do.</para>
     /// </summary>
-    public class RoverDoubt : MonoBehaviour
+    public class RoverDoubt : MonoBehaviour, IResettable
     {
         [Header("Wiring")]
         [SerializeField] private RoverController rover;
@@ -154,6 +154,14 @@ namespace Dikdik.Game
             _distanceSinceCommand = 0f;
             _asking = false;
             _lastPosition = transform.position;
+        }
+
+        /// <summary>Called by SimulationReset. Without it the rover kept the distance it
+        /// had travelled in the run the player just discarded, and asked its "are we still
+        /// going the right way" question immediately on the retry.</summary>
+        public void ResetForSimulation()
+        {
+            ResetDoubt();
         }
     }
 }

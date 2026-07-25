@@ -16,7 +16,7 @@ namespace Dikdik.Game
     /// channels or it is not finished.
     /// </summary>
     [RequireComponent(typeof(Collider))]
-    public class Junction : MonoBehaviour
+    public class Junction : MonoBehaviour, IResettable
     {
         [Header("Identity")]
         [Tooltip("Order along the corridor. Only used for logging and level scripting.")]
@@ -103,6 +103,16 @@ namespace Dikdik.Game
         {
             HasBeenReached = false;
             Paint(restingColour);
+        }
+
+        /// <summary>
+        /// Called by SimulationReset. This method existed and was reachable by nobody,
+        /// so a restarted rehearsal left every junction lit and already reached, and the
+        /// player got a fresh run that had somehow already been done.
+        /// </summary>
+        public void ResetForSimulation()
+        {
+            ResetJunction();
         }
     }
 }

@@ -39,8 +39,18 @@ namespace Dikdik.Game
         [SerializeField] private float deceleration = 0f;
 
         [Header("Collision")]
-        [Tooltip("How far ahead to look for walls")]
-        [SerializeField] private float probeDistance = 0.6f;
+        [Tooltip("Distance from the rover's centre to the front of its body. The Kenney " +
+                 "rover measures 0.35 long and is attached at 4.2 scale, so the nose sits " +
+                 "0.74 out. Probing shorter than this looks for walls inside the rover.")]
+        [SerializeField] private float noseOffset = 0.74f;
+
+        [Tooltip("How far past the nose to stop. Small: the rover should come to rest " +
+                 "close enough to a rock that stopping reads as deliberate.")]
+        [SerializeField] private float stopMargin = 0.35f;
+
+        [Tooltip("Half the rover's width, for the two outer probes. The body is 1.26 " +
+                 "across at 4.2 scale.")]
+        [SerializeField] private float halfWidth = 0.55f;
 
         [SerializeField] private LayerMask obstacleMask = ~0;
 
@@ -210,12 +220,7 @@ namespace Dikdik.Game
                 // on a slope is still forward even though the asked-for direction is nil.
                 var sign = Mathf.Sign(_currentSpeed);
 
-                // Ignore triggers. Stop pads, junctions and exits are all trigger volumes
-                // the rover is meant to roll through; only solid walls block it. Without
-                // this, Unity's raycast hits the pad's trigger and the rover treats a
-                // checkpoint as a wall, which is exactly what the slope playtest hit.
-                if (Physics.Raycast(transform.position, transform.forward * sign, probeDistance,
-                                    obstacleMask, QueryTriggerInteraction.Ignore))
+                if (IsBlockedAhead(sign, Mathf.Abs(_currentSpeed) * gdelta))
                 {
                     // Hit something. Come to rest against it rather than grinding, and
                     // say so: silent failure is indistinguishable from not being heard.
@@ -230,6 +235,39 @@ namespace Dikdik.Game
             }
 
             UpdateMovingFlag();
+        }
+
+        /// <summary>
+        /// Three parallel rays down the rover's centreline and both flanks.
+        ///
+        /// <para>One centre ray used to be enough when every obstacle was a wall spanning
+        /// the corridor. Now that rocks are solid and scattered, a single ray lets the
+        /// rover shoulder a boulder that its own body plainly overlaps, which looks like
+        /// the collision is broken rather than generous.</para>
+        ///
+        /// <para><paramref name="travelThisFrame"/> extends the reach so a fast rover on a
+        /// long frame cannot step over a thin obstacle between one probe and the next. At
+        /// this speed it almost never matters; the one time it does, it is a rover through
+        /// a wall and no way to explain it.</para>
+        ///
+        /// <para>Rays start inside the rover's own capsule, which is deliberate: Unity does
+        /// not report a convex collider a ray begins inside, so the rover cannot block
+        /// itself. Triggers are ignored, because stop pads, junctions and exits are all
+        /// volumes the rover is meant to roll straight through.</para>
+        /// </summary>
+        private bool IsBlockedAhead(float sign, float travelThisFrame)
+        {
+            var forward = transform.forward * sign;
+            var reach = noseOffset + stopMargin + travelThisFrame;
+
+            // Level with the capsule's centre rather than the pivot, so the probe looks
+            // along the rover's body and not along the ground it is standing on.
+            var origin = transform.position + Vector3.up * 0.2f;
+            var side = transform.right * halfWidth;
+
+            return Physics.Raycast(origin, forward, reach, obstacleMask, QueryTriggerInteraction.Ignore)
+                || Physics.Raycast(origin + side, forward, reach, obstacleMask, QueryTriggerInteraction.Ignore)
+                || Physics.Raycast(origin - side, forward, reach, obstacleMask, QueryTriggerInteraction.Ignore);
         }
 
         private void SetDirection(int direction)
@@ -264,7 +302,14 @@ namespace Dikdik.Game
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = Color.cyan;
-            Gizmos.DrawLine(transform.position, transform.position + transform.forward * probeDistance);
+
+            var origin = transform.position + Vector3.up * 0.2f;
+            var side = transform.right * halfWidth;
+            var reach = transform.forward * (noseOffset + stopMargin);
+
+            Gizmos.DrawLine(origin, origin + reach);
+            Gizmos.DrawLine(origin + side, origin + side + reach);
+            Gizmos.DrawLine(origin - side, origin - side + reach);
         }
     }
 }
