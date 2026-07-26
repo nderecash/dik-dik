@@ -193,6 +193,10 @@ public static class Level02SceneBuilder
         var mission = CableBuilder.AddMission(cable, controller, roverLight, director);
         CableBuilder.AddHud(mission, controller, director);
 
+        // Tire sound, brake tick, turning wheels, and the attention reflex.
+        CableBuilder.AddRoverCharacter(rover, controller);
+        CableBuilder.AddWeather();
+
         // Camera and environment.
         var cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";

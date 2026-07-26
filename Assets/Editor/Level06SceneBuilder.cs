@@ -130,6 +130,10 @@ public static class Level06SceneBuilder
         var mission = CableBuilder.AddMission(cable, controller, roverLight, director);
         CableBuilder.AddHud(mission, controller, director);
 
+        // Tire sound, brake tick, turning wheels, and the attention reflex.
+        CableBuilder.AddRoverCharacter(rover, controller);
+        CableBuilder.AddWeather();
+
         // Camera. Sits higher and looks well ahead, so cresting the rim reveals the plain.
         var cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";

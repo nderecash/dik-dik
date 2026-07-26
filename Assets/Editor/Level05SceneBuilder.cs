@@ -178,6 +178,10 @@ public static class Level05SceneBuilder
                                               completeOnScan: false);
         CableBuilder.AddHud(mission, controller, director);
 
+        // Tire sound, brake tick, turning wheels, and the attention reflex.
+        CableBuilder.AddRoverCharacter(rover, controller);
+        CableBuilder.AddWeather();
+
         // ------------------------------------------------------------------
         // Camera, pitched a touch steeper to read as looking down a grade
         // ------------------------------------------------------------------

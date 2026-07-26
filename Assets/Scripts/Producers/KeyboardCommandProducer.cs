@@ -105,6 +105,12 @@ namespace Dikdik.Producers
                     // full transport delay, exactly as long as a spoken command that
                     // has already spent most of that budget inside whisper. Neither
                     // route reaches the rover first.
+                    // Put the rover on alert, exactly as speaking does. Voice gets this
+                    // from the microphone's voice detection; without it here the keyboard
+                    // would be the one input the rover does not react to early, and the
+                    // parity this whole project rests on would quietly stop being true.
+                    Dikdik.Game.RoverAttention.NoteKeyPressStatic();
+
                     CommandProduced?.Invoke(
                         new Intent(pair.Key, CommandSource.Keyboard, pair.Value.ToString(), 1f, CommandBus.Clock));
                 }

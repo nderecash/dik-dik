@@ -139,6 +139,12 @@ namespace Dikdik.Producers
         private void OnVadChanged(bool speaking)
         {
             VoiceDetectedChanged?.Invoke(speaking);
+
+            // Put the rover on alert the moment somebody starts talking, before anyone
+            // knows what they are saying. It eases off rather than acting, so the
+            // transport delay is untouched, and the keyboard producer does the same on key
+            // down so neither input is privileged. See RoverController.SetAttentive.
+            Dikdik.Game.RoverAttention.SetVoiceDetectedStatic(speaking);
         }
 
         private async void OnRecordStop(AudioChunk chunk)

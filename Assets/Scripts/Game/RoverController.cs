@@ -75,6 +75,12 @@ namespace Dikdik.Game
         public bool IsRemoteControlled { get; private set; }
 
         /// <summary>
+        /// The rover has heard someone key up and is easing off until it knows what they
+        /// want. See <see cref="SetAttentive"/>.
+        /// </summary>
+        public bool IsAttentive { get; private set; }
+
+        /// <summary>
         /// A steering command given during a scan, waiting to be obeyed. Null when there
         /// is none. The HUD shows this so a held command never looks like an ignored one.
         /// </summary>
@@ -217,6 +223,34 @@ namespace Dikdik.Game
                 OnCommand(pending.Value);
         }
 
+        [Header("Attention")]
+        [Tooltip("Fraction of normal speed while someone is mid-sentence. Not a stop: the " +
+                 "rover eases off, it does not decide for itself to halt.")]
+        [SerializeField] private float attentiveSpeedFactor = 0.45f;
+
+        /// <summary>
+        /// Someone has started talking. Ease off until we know what they want.
+        ///
+        /// <para>This is the answer to "stop should be instant" that does not break
+        /// anything else. The naive version, acting on a hotword the moment it is heard,
+        /// privileges voice over the keyboard and undoes the transport delay, which is the
+        /// mechanism holding those two inputs level with each other.</para>
+        ///
+        /// <para>So the rover does not act early. It slows early. A machine that eases off
+        /// when the radio keys up, before it knows what is coming, is a local reflex and
+        /// not a remote command, so the delay survives intact and the fiction gets better
+        /// rather than worse. Saying "stop" now feels immediate because the rover is
+        /// already shedding speed by the time the word arrives.</para>
+        ///
+        /// <para>Both inputs get it. Voice triggers on the microphone's voice detection at
+        /// about a tenth of a second; the keyboard triggers on the key going down. Neither
+        /// reaches the rover first.</para>
+        /// </summary>
+        public void SetAttentive(bool attentive)
+        {
+            IsAttentive = attentive;
+        }
+
         /// <summary>
         /// Control takes the wheel remotely. Used only by the recovery drive.
         ///
@@ -318,7 +352,8 @@ namespace Dikdik.Game
             // starts and stops on a dime exactly as before. When they are set, as on the
             // slope, the rover takes time to reach speed and, more to the point, time to
             // shed it, so a late "stop" carries you past the mark.
-            var target = _direction * moveSpeed;
+            var ceiling = IsAttentive ? moveSpeed * attentiveSpeedFactor : moveSpeed;
+            var target = _direction * ceiling;
             var rate = Mathf.Abs(target) < Mathf.Abs(_currentSpeed) ? deceleration : acceleration;
 
             _currentSpeed = rate <= 0f

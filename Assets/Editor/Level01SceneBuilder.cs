@@ -324,6 +324,10 @@ public static class Level01SceneBuilder
         var mission = CableBuilder.AddMission(cable, controller, roverLight, director);
         CableBuilder.AddHud(mission, controller, director);
 
+        // Tire sound, brake tick, turning wheels, and the attention reflex.
+        CableBuilder.AddRoverCharacter(rover, controller);
+        CableBuilder.AddWeather();
+
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);

@@ -159,22 +159,55 @@ namespace Dikdik.Commands
             IntentId.Help, IntentId.Repeat, IntentId.Restart
         };
 
+        /// <summary>
+        /// Raised when a new command replaced one that was still crossing the gap, with
+        /// the command that was dropped. The panel says so out loud, because a command
+        /// that vanishes without explanation is the thing this game may never do.
+        /// </summary>
+        public event Action<Intent> CommandReplaced;
+
         private void OnCommandProduced(Intent produced)
         {
             var intent = Permit(produced);
+
+            if (transportDelay <= 0f)
+            {
+                CommandAccepted?.Invoke(intent);
+                Deliver(intent);
+                return;
+            }
+
+            // Clear the gap BEFORE announcing the new command, so listeners already know
+            // what is being replaced when they are told what was accepted. The other
+            // order leaves the panel saying "Sending" and then learning, too late to
+            // draw it, that something was dropped.
+            //
+            // One command in flight, ever. The newest replaces whatever was still on its
+            // way.
+            //
+            // This is what makes talking over yourself work. Under a 2.6 second delay you
+            // will say "left", realise immediately it should have been right, and say
+            // "right" while the first one is still travelling. Queueing both would turn
+            // that correction into two turns, which is the opposite of what the player
+            // meant and unarguably worse than obeying only the second.
+            //
+            // It also settles the "turn right turn right turn right" case, where somebody
+            // repeats themselves because nothing has visibly happened yet. That is one
+            // right turn. It was never a request for two hundred and seventy degrees.
+            if (_inTransit.Count > 0)
+            {
+                foreach (var dropped in _inTransit)
+                    CommandReplaced?.Invoke(dropped);
+
+                _inTransit.Clear();
+            }
+
+            _inTransit.Add(intent);
 
             // Tell the player we have them straight away. The rover cannot move for
             // another couple of seconds and that is fine, but leaving someone wondering
             // whether the microphone even works is not.
             CommandAccepted?.Invoke(intent);
-
-            if (transportDelay <= 0f)
-            {
-                Deliver(intent);
-                return;
-            }
-
-            _inTransit.Add(intent);
         }
 
         private void Update()

@@ -26,6 +26,7 @@ namespace Dikdik.Game
         private static float _textScale = 1f;
         private static bool _subtitles = true;
         private static bool _voiceEnabled = true;
+        private static float _effectsVolume = 1f;
 
         /// <summary>
         /// Guideline: "Include an option to adjust the game speed."
@@ -68,9 +69,25 @@ namespace Dikdik.Game
             set => Set(ref _voiceEnabled, value, "voiceEnabled");
         }
 
+        /// <summary>
+        /// How loud the world is: tires, wind, tones. Not the voice, which has its own
+        /// level and must stay audible even with the world turned all the way down.
+        ///
+        /// <para>Separating them is the point. Someone who finds the constant tire roll
+        /// tiring, or who is running a screen reader over the captions, can silence the
+        /// world without losing the half of the game that carries the meaning. Guideline:
+        /// "Provide separate volume controls or mutes for effects, speech and background."</para>
+        /// </summary>
+        public static float EffectsVolume
+        {
+            get => _effectsVolume;
+            set => Set(ref _effectsVolume, Mathf.Clamp01(value), "effectsVolume");
+        }
+
         public static void Load()
         {
             _gameSpeed = PlayerPrefs.GetFloat(Prefix + "gameSpeed", 1f);
+            _effectsVolume = PlayerPrefs.GetFloat(Prefix + "effectsVolume", 1f);
             _highContrast = PlayerPrefs.GetInt(Prefix + "highContrast", 0) == 1;
             _textScale = PlayerPrefs.GetFloat(Prefix + "textScale", 1f);
             _subtitles = PlayerPrefs.GetInt(Prefix + "subtitles", 1) == 1;
@@ -81,6 +98,7 @@ namespace Dikdik.Game
         public static void ResetToDefaults()
         {
             _gameSpeed = 1f;
+            _effectsVolume = 1f;
             _highContrast = false;
             _textScale = 1f;
             _subtitles = true;
@@ -99,6 +117,7 @@ namespace Dikdik.Game
         private static void Save()
         {
             PlayerPrefs.SetFloat(Prefix + "gameSpeed", _gameSpeed);
+            PlayerPrefs.SetFloat(Prefix + "effectsVolume", _effectsVolume);
             PlayerPrefs.SetInt(Prefix + "highContrast", _highContrast ? 1 : 0);
             PlayerPrefs.SetFloat(Prefix + "textScale", _textScale);
             PlayerPrefs.SetInt(Prefix + "subtitles", _subtitles ? 1 : 0);

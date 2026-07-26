@@ -332,6 +332,99 @@ public static class CableBuilder
         return hud;
     }
 
+    /// <summary>
+    /// Everything that makes the rover feel like a machine rather than a moving box:
+    /// tire sound, brake tick, wheels that turn, and the attention reflex.
+    ///
+    /// <para>Here rather than in each level builder because all six rovers are built by
+    /// six near-identical private BuildRover methods, and adding this to each of them is
+    /// six chances to add it slightly differently.</para>
+    /// </summary>
+    public static void AddRoverCharacter(GameObject rover, RoverController controller)
+    {
+        var tireLoop = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/tire_roll.wav");
+        var brakeTick = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/brake_tick.wav");
+
+        // Its own source. The rover already has one for tones and the voice has another,
+        // and a looping tire roll sharing a channel with a one-shot would cut the loop
+        // every time anything else played.
+        var tireObject = new GameObject("Tire Audio");
+        tireObject.transform.SetParent(rover.transform, false);
+        var tireSource = tireObject.AddComponent<AudioSource>();
+        tireSource.playOnAwake = false;
+        tireSource.loop = true;
+        tireSource.spatialBlend = 0f;
+        tireSource.volume = 0f;
+
+        var audio = rover.AddComponent<RoverAudio>();
+        var audioSerialized = new SerializedObject(audio);
+        SetRef(audioSerialized, "rover", controller);
+        SetRef(audioSerialized, "tireSource", tireSource);
+        SetRef(audioSerialized, "effectSource", rover.GetComponent<AudioSource>());
+        SetRef(audioSerialized, "tireLoop", tireLoop);
+        SetRef(audioSerialized, "brakeTick", brakeTick);
+        audioSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        var attention = rover.AddComponent<RoverAttention>();
+        var attentionSerialized = new SerializedObject(attention);
+        SetRef(attentionSerialized, "rover", controller);
+        attentionSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        // Body motion, plus any wheels the level happens to have kitbashed on. The Kenney
+        // rover is a single mesh with its wheels moulded in, so the list is normally empty
+        // and the bob is what sells the driving. See RoverWheels.
+        var wheels = new System.Collections.Generic.List<Transform>();
+        Transform body = null;
+
+        foreach (var child in rover.GetComponentsInChildren<Transform>())
+        {
+            if (child.name.StartsWith("Wheel"))
+                wheels.Add(child);
+            else if (child.name == "Rover Model")
+                body = child;
+        }
+
+        var spin = rover.AddComponent<RoverWheels>();
+        var spinSerialized = new SerializedObject(spin);
+        SetRef(spinSerialized, "rover", controller);
+        SetRef(spinSerialized, "body", body);
+        var wheelArray = spinSerialized.FindProperty("wheels");
+        wheelArray.arraySize = wheels.Count;
+        for (var i = 0; i < wheels.Count; i++)
+            wheelArray.GetArrayElementAtIndex(i).objectReferenceValue = wheels[i];
+        spinSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        if (body == null)
+            Debug.LogWarning($"[CableBuilder] {rover.name} has no child named 'Rover Model'. " +
+                             "The driving animation will do nothing.");
+    }
+
+    /// <summary>
+    /// Wind and drifting dust.
+    ///
+    /// <para>No camera reference. DriftingDust finds the main camera itself on Start,
+    /// which matters because five of the six builders create their camera after the point
+    /// where this is called, and threading the ordering through six files is six chances
+    /// to get it wrong for a value that is trivially available at runtime.</para>
+    /// </summary>
+    public static void AddWeather()
+    {
+        var windLoop = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/wind_loop.wav");
+
+        var weather = new GameObject("Weather");
+
+        var windSource = weather.AddComponent<AudioSource>();
+        windSource.playOnAwake = false;
+        windSource.loop = true;
+        windSource.spatialBlend = 0f;
+
+        var dust = weather.AddComponent<DriftingDust>();
+        var dustSerialized = new SerializedObject(dust);
+        SetRef(dustSerialized, "windSource", windSource);
+        SetRef(dustSerialized, "windLoop", windLoop);
+        dustSerialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
     // ------------------------------------------------------------------
     // Geometry
     // ------------------------------------------------------------------

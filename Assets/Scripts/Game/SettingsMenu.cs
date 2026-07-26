@@ -246,6 +246,13 @@ namespace Dikdik.Game
                             "it costs you less ground.", body);
             GUILayout.Space(16);
 
+            GUILayout.Label($"World volume: {Mathf.RoundToInt(GameSettings.EffectsVolume * 100)}%", body);
+            GameSettings.EffectsVolume = GUILayout.HorizontalSlider(GameSettings.EffectsVolume, 0f, 1f);
+            GUILayout.Label("Tires, wind and tones. Not the voices, which stay where they are. " +
+                            "Turn this to zero and you lose nothing you need: every sound in the " +
+                            "game is also written on screen.", body);
+            GUILayout.Space(16);
+
             var voiceAvailable = Bootstrap.Instance == null || Bootstrap.Instance.VoiceAvailable;
 
             GUI.enabled = voiceAvailable;

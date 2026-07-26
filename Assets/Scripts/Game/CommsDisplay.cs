@@ -69,6 +69,7 @@ namespace Dikdik.Game
                 bus.CommandAccepted += OnAccepted;
                 bus.CommandIssued += OnIssued;
                 bus.CommandNotUnderstood += OnNotUnderstood;
+                bus.CommandReplaced += OnReplaced;
             }
 
             GameSettings.Changed += ApplySettings;
@@ -84,6 +85,7 @@ namespace Dikdik.Game
                 bus.CommandAccepted -= OnAccepted;
                 bus.CommandIssued -= OnIssued;
                 bus.CommandNotUnderstood -= OnNotUnderstood;
+                bus.CommandReplaced -= OnReplaced;
             }
 
             GameSettings.Changed -= ApplySettings;
@@ -308,7 +310,11 @@ namespace Dikdik.Game
         /// </summary>
         private void OnAccepted(Intent intent)
         {
-            Show(Describe(intent), "Sending.", transitColour);
+            var status = _replaced == null
+                ? "Sending."
+                : $"Sending.  Replaces: {_replaced}";
+
+            Show(Describe(intent), status, transitColour);
             _clearAt = 0f;   // held open until it lands
         }
 
@@ -316,6 +322,21 @@ namespace Dikdik.Game
         {
             Show(Describe(intent), $"Salty: {Readable(intent.Id)}", actedColour);
             _clearAt = Time.time + holdSeconds;
+            _replaced = null;
+        }
+
+        private string _replaced;
+
+        /// <summary>
+        /// A command was overtaken by a newer one before it arrived.
+        ///
+        /// Named out loud rather than letting it disappear. The player chose to talk over
+        /// themselves, so this is not an error, but it is a thing that happened to an
+        /// instruction they gave, and this game does not let those vanish quietly.
+        /// </summary>
+        private void OnReplaced(Intent dropped)
+        {
+            _replaced = Readable(dropped.Id);
         }
 
         private void OnNotUnderstood(Intent intent)
