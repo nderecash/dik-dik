@@ -101,6 +101,23 @@ means every command you give slows the rover slightly, and that might read as sl
 rather than attentive. The number is `attentiveSpeedFactor` on RoverController. If it
 feels wrong, 0.7 is gentler and 0 makes it a true instant stop.
 
+### P6. The cinematic has never been watched.
+
+It only runs at play time, so no screenshot can show it. The camera keyframes are guesses
+made against the level's dimensions, not against how the shot actually reads. Expect to
+tune `spaceStart`, `approach`, `arrival` and `easing` on the IntroCinematic component. All
+four are serialized fields on the Main Camera in Level 1.
+
+The one structural risk: if the briefing turns out to be shorter than the camera moves,
+the shot will feel rushed. The fix is fewer beats, not a longer briefing.
+
+### P7. The blockage rock is solid and sits on the cable.
+
+If the diagnostic conversation somehow fails to start, the rover is stopped by a rock with
+no way past. Three things have to fail at once for that, and the recovery drive would
+eventually take over, but it is the one place in the game where a player could be properly
+stuck. Worth watching for in levels 1 and 3.
+
 ### P3. WebGL needs the whisper package embedded.
 
 It fails at link time, not compile time: `undefined symbol: whisper_init_from_file_with_params`.

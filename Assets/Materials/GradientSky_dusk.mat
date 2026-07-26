@@ -26,7 +26,9 @@ Material:
     m_Ints: []
     m_Floats:
     - _HorizonSharp: 4
+    - _SpaceBlend: 0
     - _StarAmount: 0.35
+    - _StarsEverywhere: 0
     - _SunSize: 0.995
     m_Colors:
     - _Ground: {r: 0.05, g: 0.05, b: 0.06, a: 1}

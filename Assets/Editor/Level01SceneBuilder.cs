@@ -270,6 +270,19 @@ public static class Level01SceneBuilder
         // Sky, sun, ambient, then the distant ridge line and scattered rocks. The dusty
         // horizon is what the silhouette style needs behind its black shapes.
         Environment.ApplyLighting("dusk", new Color(0.62f, 0.6f, 0.62f), new Color(0.04f, 0.05f, 0.11f));
+
+        // The opening. Level 1 only, because this is where the briefing plays, and it
+        // borrows this camera rather than adding its own. Wired after ApplyLighting so
+        // the sky material it animates is the one the scene actually ends up with.
+        var cinematic = cameraObject.AddComponent<IntroCinematic>();
+        var cinematicSerialized = new SerializedObject(cinematic);
+        SetRef(cinematicSerialized, "cinematicCamera", camera);
+        SetRef(cinematicSerialized, "follow", follow);
+        SetRef(cinematicSerialized, "rover", rover.transform);
+        SetRef(cinematicSerialized, "skyAsset",
+               AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/GradientSky_dusk.mat"));
+        cinematicSerialized.ApplyModifiedPropertiesWithoutUndo();
+
         Environment.BuildHorizon(new Vector3(0f, 0f, bounds.center.z), 120f, 1);
         Environment.ScatterKenneyRocks(new Vector3(0f, 0f, bounds.center.z),
                                        40f, bounds.size.z * 0.7f + 20f, CorridorHalfWidth + 3f, 45, 1);

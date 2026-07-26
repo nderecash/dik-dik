@@ -19,6 +19,17 @@ Shader "Dikdik/GradientSky"
         _SunColour ("Sun Colour", Color) = (1, 0.95, 0.85, 1)
         _SunSize ("Sun Size", Range(0.9, 0.9999)) = 0.995
         _StarAmount ("Star Amount", Range(0, 1)) = 0.5
+
+        // Two properties the opening cinematic animates and nothing else touches.
+        //
+        // _SpaceBlend darkens the whole sky toward space. At 1 the horizon band, the
+        // ground tint and the sun glow are all gone and what is left is stars, which is
+        // what the camera should see before it descends.
+        //
+        // _StarsEverywhere defeats the upper-hemisphere gate below. In normal play stars
+        // only belong above the horizon; out in space there is no horizon to be above.
+        _SpaceBlend ("Space Blend", Range(0, 1)) = 0
+        _StarsEverywhere ("Stars Everywhere", Range(0, 1)) = 0
     }
 
     SubShader
@@ -35,6 +46,7 @@ Shader "Dikdik/GradientSky"
 
             fixed4 _Zenith, _Horizon, _Ground, _SunColour;
             float _HorizonSharp, _SunSize, _StarAmount;
+            float _SpaceBlend, _StarsEverywhere;
             float4 _SunDir;
 
             struct appdata { float4 vertex : POSITION; };
@@ -66,21 +78,31 @@ Shader "Dikdik/GradientSky"
                 fixed3 sky = lerp(_Horizon.rgb, _Zenith.rgb, up);
                 sky = lerp(sky, _Ground.rgb, saturate(-h * 6.0));
 
-                // Sun disk plus a soft glow.
+                // Toward space: lose the horizon band and the ground, keep the zenith.
+                sky = lerp(sky, _Zenith.rgb * 0.35, _SpaceBlend);
+
+                // Sun disk plus a soft glow. The glow fades out in space; the disk does
+                // not, because a star seen from outside an atmosphere is still a disk.
                 float3 sun = normalize(_SunDir.xyz);
                 float d = dot(dir, sun);
                 float disk = smoothstep(_SunSize, 1.0, d);
                 float glow = pow(saturate(d), 200.0) * 0.5 + pow(saturate(d), 8.0) * 0.15;
-                sky += _SunColour.rgb * (disk + glow);
+                sky += _SunColour.rgb * (disk + glow * (1.0 - _SpaceBlend));
 
-                // Stars, only in the upper sky, thinning toward the horizon.
-                if (h > 0.05)
-                {
-                    float3 cell = floor(dir * 300.0);
-                    float s = hash(cell);
-                    float star = step(1.0 - _StarAmount * 0.02, s) * saturate(h * 2.0);
-                    sky += star;
-                }
+                // Stars. Normally only in the upper sky, thinning toward the horizon; in
+                // space, everywhere and at full strength, because there is no horizon.
+                float band = max(saturate(h * 2.0), _StarsEverywhere);
+                float gate = max(step(0.05, h), _StarsEverywhere);
+
+                float3 cell = floor(dir * 300.0);
+                float s = hash(cell);
+
+                // smoothstep rather than step. A hard cut makes stars pop in and out as
+                // the camera pans, and this shader now gets panned across for half a
+                // minute at the start of the game.
+                float threshold = 1.0 - _StarAmount * 0.02;
+                float star = smoothstep(threshold, threshold + 0.004, s) * band * gate;
+                sky += star;
 
                 return fixed4(sky, 1.0);
             }
