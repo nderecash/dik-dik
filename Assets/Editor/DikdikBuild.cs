@@ -71,23 +71,32 @@ public static class DikdikBuild
         // settings screen says voice is Windows only, rather than showing a microphone
         // button that quietly does nothing.
         //
-        // KNOWN ISSUE, must be fixed before this target will build:
-        // com.whisper.unity.asmdef declares empty includePlatforms AND empty
-        // excludePlatforms, which means "every platform", WebGL included. Its DllImport
-        // declarations then have no library to bind to and the build fails on undefined
-        // symbols. Excluding our own code is not enough; the package's own assembly has
-        // to be excluded too.
+        // FIXED. Kept here because the failure was not obvious and the fix is not either.
         //
-        // Fix: embed the package (copy PackageCache/com.whisper.unity@<hash> into
-        // Packages/com.whisper.unity), then set "excludePlatforms": ["WebGL"] in its
-        // asmdef. Embedding also pins a dependency that has no registry release and
-        // could otherwise move under us mid-project.
+        // com.whisper.unity.asmdef declared empty includePlatforms AND empty
+        // excludePlatforms, which Unity reads as "every platform", WebGL included. Its
+        // DllImport declarations then had no library to bind to and the build died at
+        // Emscripten link time on undefined symbols, not at C# compile time. Guarding our
+        // own code was never going to be enough; the package's own assembly had to be
+        // excluded.
+        //
+        // PackageCache is immutable, so the asmdef could not simply be edited. The package
+        // is now embedded at Packages/com.whisper.unity with "excludePlatforms": ["WebGL"]
+        // and the git URL dropped from the manifest. That also pins a dependency which has
+        // no registry release and could otherwise have moved under the project mid-build.
         PlayerSettings.SetScriptingBackend(NamedBuildTarget.WebGL, ScriptingImplementation.IL2CPP);
         PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
-        PlayerSettings.WebGL.memorySize = 512;
 
-        // itch.io serves these fine, and the exception support costs size we do not need.
-        PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.None;
+        // WebGL.memorySize was a deprecated no-op and is gone. Unity 6 grows the heap
+        // itself; setting it did nothing except look like it was doing something.
+
+        // Not None. Unity has a known build failure with exception support fully disabled,
+        // and this is the cheapest setting that still builds.
+        PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
+
+        // itch.io serves compressed builds correctly, so the JS fallback is dead weight.
+        PlayerSettings.WebGL.decompressionFallback = false;
+        PlayerSettings.WebGL.dataCaching = true;
 
         Run(new BuildPlayerOptions
         {
@@ -96,7 +105,37 @@ public static class DikdikBuild
             target = BuildTarget.WebGL,
             targetGroup = BuildTargetGroup.WebGL,
             options = BuildOptions.None
-        });
+        }, StripWhisperModels);
+    }
+
+    /// <summary>
+    /// Delete the Whisper model weights from the finished web build.
+    ///
+    /// <para>Unity copies everything in StreamingAssets to every platform, so the browser
+    /// build shipped 148 MB of model weights for a recogniser that is compiled out of it.
+    /// That was 89% of the download, for a feature the build does not have.</para>
+    ///
+    /// <para>Done after the build rather than by moving files out of the project first.
+    /// Moving them would mean a failed or interrupted build leaves the project missing its
+    /// models, and the next Windows build then silently has no voice. Deleting from the
+    /// output can only ever damage output.</para>
+    /// </summary>
+    private static void StripWhisperModels()
+    {
+        var folder = Path.Combine(WebPath, "StreamingAssets", "Whisper");
+
+        if (!Directory.Exists(folder))
+            return;
+
+        var freed = 0L;
+        foreach (var file in Directory.GetFiles(folder, "*.bin"))
+        {
+            freed += new FileInfo(file).Length;
+            File.Delete(file);
+        }
+
+        Debug.Log($"[DikdikBuild] Web: removed {freed / 1048576} MB of Whisper models. " +
+                  "The browser build is keyboard only and cannot use them.");
     }
 
     /// <summary>Settings that must be identical across both builds.</summary>
@@ -155,7 +194,14 @@ public static class DikdikBuild
         return ShippedScenes;
     }
 
-    private static void Run(BuildPlayerOptions options)
+    /// <param name="afterBuild">
+    /// Runs on success, before the editor quits. It has to be a parameter rather than a
+    /// line after the Run call, because this method ends in EditorApplication.Exit and
+    /// nothing written after it ever executes. That silently swallowed the model-stripping
+    /// step on the first attempt: the build reported success, the log had no complaint,
+    /// and the output was still 167 MB.
+    /// </param>
+    private static void Run(BuildPlayerOptions options, Action afterBuild = null)
     {
         var directory = Path.GetDirectoryName(options.locationPathName);
         if (!string.IsNullOrEmpty(directory))
@@ -178,6 +224,8 @@ public static class DikdikBuild
             EditorApplication.Exit(1);
             return;
         }
+
+        afterBuild?.Invoke();
 
         EditorApplication.Exit(0);
     }

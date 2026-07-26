@@ -118,9 +118,30 @@ no way past. Three things have to fail at once for that, and the recovery drive 
 eventually take over, but it is the one place in the game where a player could be properly
 stuck. Worth watching for in levels 1 and 3.
 
-### P3. WebGL needs the whisper package embedded.
+### P3. WebGL. FIXED, but read this before you touch the package.
 
-It fails at link time, not compile time: `undefined symbol: whisper_init_from_file_with_params`.
-The package must be copied out of `Library/PackageCache` into `Packages/` and given
-`"excludePlatforms": ["WebGL"]`. Also 148 MB of models in StreamingAssets ship to the web
-build for no reason. Handling in Phase 5.
+The browser build works: 18.9 MB, 0 errors, 0 warnings, zip ready at
+`Builds/dikdik-web.zip`.
+
+Getting there changed something structural that you should know about. **whisper.unity is
+no longer a git dependency. It is embedded at `Packages/com.whisper.unity`.**
+
+It had to be. Its asmdef declared empty include and exclude platform lists, which Unity
+reads as "every platform", so its DllImports were compiled into the WebGL build with no
+library to bind to, and the build died at Emscripten link time. PackageCache is immutable,
+so the asmdef could not be edited in place.
+
+Consequences:
+- The package is now yours to maintain. It will not update itself.
+- Its own test folder is deleted. Embedded packages compile their tests; cached ones do
+  not, and those tests need NUnit references the project does not have.
+- It contributes **one warning** to every Windows build, `CS4014` in its `FileUtils.cs`.
+  That is vendor code and I did not edit it. So the clean-build signal is now "0 errors,
+  1 known vendor warning", not zero.
+- The version is pinned at commit `de9ce92ad4c5`, which is what you were already on.
+
+### P8. Nothing has been uploaded anywhere.
+
+The web zip and the Windows build both exist and are correct. No itch.io page has been
+created, nothing has been uploaded, and no video has been recorded. Page copy is in
+`docs/itch-page.md`, video shot list in `docs/demo-video.md`.
