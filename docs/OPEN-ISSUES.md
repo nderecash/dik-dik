@@ -140,6 +140,22 @@ Consequences:
   1 known vendor warning", not zero.
 - The version is pinned at commit `de9ce92ad4c5`, which is what you were already on.
 
+### P9. The repo is now 118 MB, and I left it that way on purpose.
+
+Embedding whisper.unity added 77 MB of native libraries, including 25 MB of Linux Vulkan
+and 20 MB of Android static libs for platforms this project will never target. Nothing
+exceeds GitHub's 100 MB per-file limit and the push went through.
+
+I did not trim them, for one reason: the blobs are already in git history, so deleting the
+files now would shrink the working tree without shrinking a clone. Actually fixing it means
+rewriting history, and rewriting history on a repo you might have cloned somewhere else is
+not something to do while you are away.
+
+If you want it smaller, the move is `git filter-repo` on
+`Packages/com.whisper.unity/Plugins/{Android,iOS,macOS,Linux}` plus a force push, done
+deliberately and with a backup. Recoverable either way: the package is pinned at commit
+`de9ce92ad4c5` upstream.
+
 ### P8. Nothing has been uploaded anywhere.
 
 The web zip and the Windows build both exist and are correct. No itch.io page has been
