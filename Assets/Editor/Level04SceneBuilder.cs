@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Dikdik.Commands;
 using Dikdik.Game;
@@ -116,6 +117,14 @@ public static class Level04SceneBuilder
         var exitSerialized = new SerializedObject(exitZone);
         SetRef(exitSerialized, "director", director);
         exitSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        // The relay line, running under the door to the exit. Three checkpoints, so one
+        // falls on each side of the door and the jammed key never blocks a scan.
+        var cableCorners = new List<Vector3> { Vector3.zero, new Vector3(0f, 0f, RunEnd - 3f) };
+        var cable = CableBuilder.Build(cableCorners, 3, false, controller, roverLight,
+                                       rover.GetComponent<AudioSource>());
+        var mission = CableBuilder.AddMission(cable, controller, roverLight, director);
+        CableBuilder.AddHud(mission, controller, director);
 
         // Camera.
         var cameraObject = new GameObject("Main Camera");

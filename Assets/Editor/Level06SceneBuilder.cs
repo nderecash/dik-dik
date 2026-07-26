@@ -117,6 +117,19 @@ public static class Level06SceneBuilder
             dormantProp.GetArrayElementAtIndex(i).objectReferenceValue = dormant[i];
         sequenceSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        // The last stretch of relay line, and the break in it.
+        //
+        // The final checkpoint is the only one in the whole game flagged as the fault. It
+        // reports the fault lines instead of the clean ones, turns the rover's lamp red
+        // instead of green, and lights its section of cable red instead of blue. Every
+        // scan before this one, across six sectors, has been building the expectation this
+        // moment breaks.
+        var cableCorners = new List<Vector3> { Vector3.zero, new Vector3(0f, 0f, RimZ - 2f) };
+        var cable = CableBuilder.Build(cableCorners, 4, true, controller, roverLight,
+                                       rover.GetComponent<AudioSource>());
+        var mission = CableBuilder.AddMission(cable, controller, roverLight, director);
+        CableBuilder.AddHud(mission, controller, director);
+
         // Camera. Sits higher and looks well ahead, so cresting the rim reveals the plain.
         var cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";

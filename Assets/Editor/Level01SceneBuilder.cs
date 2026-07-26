@@ -316,6 +316,14 @@ public static class Level01SceneBuilder
         SetRef(exitSerialized, "director", director);
         exitSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        // ------------------------------------------------------------------
+        // The relay line. Same corners as the corridor, so it runs down the middle
+        // of clear ground by construction rather than by anyone remembering to check.
+        // ------------------------------------------------------------------
+        var cable = CableBuilder.Build(corners, 3, false, controller, roverLight, audio);
+        var mission = CableBuilder.AddMission(cable, controller, roverLight, director);
+        CableBuilder.AddHud(mission, controller, director);
+
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);

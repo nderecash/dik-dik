@@ -68,8 +68,30 @@ namespace Dikdik.Game
         /// <summary>True while stopped at a junction, waiting to be told which way.</summary>
         public bool IsWaitingAtJunction { get; private set; }
 
+        /// <summary>True while a checkpoint scan has the wheel. See BeginScanHold.</summary>
+        public bool IsScanHeld { get; private set; }
+
+        /// <summary>True while Control is driving it back to the line. See BeginRemoteControl.</summary>
+        public bool IsRemoteControlled { get; private set; }
+
+        /// <summary>
+        /// A steering command given during a scan, waiting to be obeyed. Null when there
+        /// is none. The HUD shows this so a held command never looks like an ignored one.
+        /// </summary>
+        public Intent? HeldCommand { get; private set; }
+
+        /// <summary>Raised when the held command appears or is released.</summary>
+        public event Action<Intent?> HeldCommandChanged;
+
         /// <summary>Signed speed along forward, in units per second. Zero when at rest.</summary>
         public float CurrentSpeed => _currentSpeed;
+
+        /// <summary>
+        /// Still rolling, but told to stop. This is the whole of Level 5 in one boolean:
+        /// on the slope the rover coasts after "stop", and the brake light is what makes
+        /// that visible rather than merely frustrating.
+        /// </summary>
+        public bool IsBraking => _direction == 0 && Mathf.Abs(_currentSpeed) > 0.01f;
 
         private float _targetYaw;
         private int _direction;   // target: 1 forward, -1 back, 0 still
@@ -95,6 +117,14 @@ namespace Dikdik.Game
 
         private void OnCommand(Intent intent)
         {
+            // Held, not dropped. See BeginScanHold.
+            if (IsScanHeld && IsDrivingIntent(intent.Id))
+            {
+                HeldCommand = intent;
+                HeldCommandChanged?.Invoke(HeldCommand);
+                return;
+            }
+
             switch (intent.Id)
             {
                 case IntentId.Go:
@@ -147,6 +177,82 @@ namespace Dikdik.Game
             IsWaitingAtJunction = true;
         }
 
+        /// <summary>
+        /// Take the wheel for a scan, and keep anything the player says while we have it.
+        ///
+        /// <para>The rover stops itself at a checkpoint because landing a stop on a mark
+        /// under a 2.6 second delay is not a skill, it is a coin toss. But taking control
+        /// away creates the risk this whole game exists to avoid: a player speaks, and
+        /// nothing happens, and they cannot tell whether they were heard.</para>
+        ///
+        /// <para>So the command is held rather than ignored, shown on the panel as waiting,
+        /// and obeyed the moment the scan ends. The hold is one deep and newest wins, which
+        /// is the same rule as everywhere else: the rover does the most recent thing it was
+        /// told, not a backlog of everything it was ever told.</para>
+        /// </summary>
+        public void BeginScanHold()
+        {
+            if (IsScanHeld)
+                return;
+
+            SetDirection(0);
+            IsScanHeld = true;
+            HeldCommand = null;
+            HeldCommandChanged?.Invoke(null);
+        }
+
+        /// <summary>Give the wheel back, and obey whatever was said while we had it.</summary>
+        public void EndScanHold()
+        {
+            if (!IsScanHeld)
+                return;
+
+            IsScanHeld = false;
+
+            var pending = HeldCommand;
+            HeldCommand = null;
+            HeldCommandChanged?.Invoke(null);
+
+            if (pending.HasValue)
+                OnCommand(pending.Value);
+        }
+
+        /// <summary>
+        /// Control takes the wheel remotely. Used only by the recovery drive.
+        ///
+        /// <para>While this is on, the rover neither steers nor moves itself: something
+        /// else is writing its transform. The framing matters and is not decoration. A
+        /// rover that unstuck itself would be a rover that acts without being asked, and
+        /// the entire premise is that it does not. So the fiction is that Control is
+        /// driving it, the voice line says exactly that, and the light shows a state the
+        /// player has never seen the rover produce on its own.</para>
+        /// </summary>
+        public void BeginRemoteControl()
+        {
+            SetDirection(0);
+            _currentSpeed = 0f;
+            IsRemoteControlled = true;
+        }
+
+        /// <summary>Hand the wheel back, pointing wherever the recovery left it.</summary>
+        public void EndRemoteControl()
+        {
+            IsRemoteControlled = false;
+
+            // Adopt the heading the recovery drive finished on. Without this the rover
+            // snaps back to whatever it was aiming at before it got stuck, which after a
+            // recovery is almost always into the thing it was stuck on.
+            _targetYaw = transform.eulerAngles.y;
+            _resumeAfterTurn = false;
+        }
+
+        /// <summary>Commands that steer. Everything else belongs to objects in the world.</summary>
+        private static bool IsDrivingIntent(IntentId id)
+        {
+            return id == IntentId.Go || id == IntentId.Back || id == IntentId.Stop
+                || id == IntentId.Left || id == IntentId.Right;
+        }
+
         private void Turn(float degrees)
         {
             _targetYaw += degrees;
@@ -174,6 +280,11 @@ namespace Dikdik.Game
             // That is why slowing the game shrinks the overshoot on the slope, because
             // the rover covers less ground during those fixed 2.6 seconds.
             var gdelta = Time.deltaTime * GameSettings.GameSpeed;
+
+            // Something else owns the transform while Control is driving. Steering and
+            // moving here as well would have two things writing one position.
+            if (IsRemoteControlled)
+                return;
 
             TurnTowardTarget(gdelta);
             ResumeIfTurnFinished();

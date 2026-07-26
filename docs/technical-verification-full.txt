@@ -1,0 +1,459 @@
+===== keyword-recognizer =====
+VERDICT: PARTIAL. The API exists and is not deprecated in code (CONFIRMED). Its reliability on an ordinary Windows 11 machine is REFUTED (no evidence found, and strong counter-evidence). The mic-coexistence assumption is UNVERIFIED, so per your skeptical default, treat it as REFUTED. The plan as written is not safe to build on.
+
+DETAIL:
+1. DOES IT STILL EXIST IN UNITY 6.x? Yes, confirmed.
+Namespace UnityEngine.Windows.Speech. It is core engine code, not a package: it lives in UnityCsReference at Runtime/Export/Windows/Speech.cs and Speech.bindings.cs, bound to the native header PlatformDependent/Win/Bindings/SpeechBindings.h. It compiles into UnityEngine.CoreModule, so nothing to add to Packages/manifest.json. I checked the current C# reference source for [Obsolete] attributes on PhraseRecognizer, KeywordRecognizer, GrammarRecognizer and DictationRecognizer: there are none. I also grepped the live Unity 6.5 scripting reference page for KeywordRecognizer and it contains no instance of "obsolete", "deprecated" or "removed". One "Legacy" string appears in the page chrome; I could not extract its context, so I will not claim it is an API status marker either way. Nothing in Unity 6.5 release notes indicates removal.
+
+2. WINDOWS REQUIREMENTS. This is where it falls over.
+The Unity 6.5 docs still say, verbatim, "Keyword recognizer is currently functional only on Windows 10." Unity has never updated that sentence for Windows 11. PhraseRecognitionSystem carries the same restriction and exposes isSupported precisely because the platform may not support it.
+
+Meanwhile Microsoft's own deprecated-features list (entry dated December 2023, page last updated Feb 2026) says: "Windows speech recognition is deprecated and is no longer being developed. This feature is being replaced with voice access." The handover landed on Windows 11 22H2 and later in September 2024. I looked for a Microsoft statement that the underlying APIs (SAPI, System.Speech, Windows.Media.SpeechRecognition) survive that removal intact. There is none. The closest is a Microsoft Q&A thread where a Microsoft support specialist answered the exact question with "there will be a gradually migration happening because that is the nature of software industry", which is not a commitment.
+
+The documented failure mode is not a clean exception you can plan around, it is exactly the silent-death case you were worried about. PhraseRecognitionSystem.isSupported returns false and the KeywordRecognizer constructor throws UnityException: "Speech recognition is not supported on this machine." MRTK issue #7498 exists solely because MRTK kept trying to start recognizers on machines where this happens, producing 328 log lines per test run. The dependency is on the OS speech platform being installed and on a speech language pack matching the display language. SpeechError also includes MicrophoneUnavailable, TopicLanguageNotSupported and NetworkFailure, so it can fail after a successful start too.
+
+Note the split: KeywordRecognizer maps to a local list constraint, so it does not need the "Online speech recognition" privacy toggle. DictationRecognizer does, and fails with SPERR_SPEECH_PRIVACY_POLICY_NOT_ACCEPTED (0x80045509) when it is off. So the privacy toggle is not your risk. The missing speech engine and language pack is.
+
+Evidence for Windows 11 specifically: one Unity Discussions thread from 1-2 March 2026 tagged Unity 6.2, "Keyword Recognizer on windows 11". A community member replied "it should still work on Windows 11 as the Speech SDK is backward compatible." That is a guess, not a test. No Unity staff replied. Notably the person who asked said they had already switched to Whisper. That is the entire public evidence base for Windows 11. It is not enough.
+
+3. THE CRITICAL QUESTION: CAN KEYWORDRECOGNIZER AND UNITY'S MICROPHONE CLASS SHARE THE MIC?
+No authoritative source answers this. Not Unity's docs, not Unity staff, not Microsoft Learn, not the Unity issue tracker. I searched specifically for it and came up empty. Anyone telling you it definitely works or definitely does not is guessing.
+
+What is actually documented is a different constraint that is easy to mistake for this one. Microsoft Learn states: "Dictation and phrase recognition can't be handled at the same time. If a GrammarRecognizer or KeywordRecognizer is active, a DictationRecognizer can't be active and vice versa." That is a constraint inside Unity's own speech stack. It says nothing about UnityEngine.Microphone.
+
+The architectural argument in your favour: Windows WASAPI shared mode allows multiple applications and multiple clients to capture the same endpoint concurrently. Only exclusive mode locks others out, and neither Unity's FMOD-backed Microphone nor the Windows speech stack opens exclusive mode. So it should work. But "should" from first principles is not verification, and your instruction was to default to REFUTED without clear evidence. So: unverified, do not build the instant-STOP design on it until you have run it yourself.
+
+Relevant to this: I checked your project. C:\dev\dik-dik is on 6000.5.2f1 and already pulls com.whisper.unity (Macoron) at commit de9ce92ad4c5. Its MicrophoneRecord.cs calls Microphone.Start at line 262 and owns the device for the whole session. So the conflict, if it exists, is guaranteed to bite: whisper.unity holds the mic open continuously.
+
+4. ALTERNATIVES. The best one is already in your project.
+whisper.unity ships an energy-plus-frequency VAD (AudioUtils.SimpleVad) that MicrophoneRecord runs on a 100ms tick (vadUpdateRateSec = 0.1f, vadThd, vadFreqThd, OnVadChanged event). That gives you a genuine sub-100ms "someone is speaking" signal for free, off the same single Microphone.Start, with zero mic contention.
+
+whisper.cpp upstream already solves the small-vocabulary case: examples/command has a guided mode where you pass a command list and, in the project's own words, "the transcription will be guided to classify your command into one from the list." That is your four words exactly.
+
+The latency lever is audio_ctx, and whisper.unity exposes it as WhisperParams.AudioCtx (WhisperParams.cs line 306). Default is 1500, which makes the encoder chew a full 30s window regardless of how much audio you fed it. whisper.cpp's own discussion #297 documents the tradeoff and says the option "is suitable for the stream and command examples in this repo", with the working formula (audio_length/30)*1500 + 128, and warns the decoder starts to glitch if you stray too far from the 30s training window. Issue #1855 reports roughly 3x speedup on short clips.
+
+System.Speech is the worst of the three options you listed. It is not in Unity's .NET profile, needs the desktop .NET Framework assembly referenced by hand, is Mono-and-Windows-only, and it binds to SAPI 5.4 / the Microsoft Speech Recognizer, which is the exact engine Microsoft deprecated. Same OS risk as KeywordRecognizer plus more integration pain.
+
+Windows AI APIs speech recognition is not a fit either: it requires Windows 11 24H2 build 26100+, WinAppSDK 1.7.1+, and MSIX packaging with the systemAIModels capability declared. A Unity standalone build is not MSIX.
+
+RECOMMENDATION:
+Drop KeywordRecognizer from the critical path. Do not make the instant-STOP depend on it.
+
+Build the fast path out of what is already in the project, on one shared Microphone.Start:
+
+1. Keep exactly one MicrophoneRecord. Never call Microphone.Start twice. This removes the unverified mic-conflict risk entirely rather than betting on it.
+2. Wire MicrophoneRecord.OnVadChanged as the instant gate. VAD onset fires within ~100ms. On onset, immediately apply a caution response (cut rover throttle, arm the stop). This is defensible HCI, not a hack: the rover reacts to "the operator is saying something" before it knows what.
+3. Confirm with a second WhisperManager running tiny.en on a ~1s rolling slice of the same buffer, configured as a classifier: SingleSegment = true, AudioCtx around 256 to 384 (per the (audio_length/30)*1500 + 128 formula for ~1s), InitialPrompt seeded with "stop, go, left, right", greedy decode. Then fuzzy-match the output against the four words. Realistically this lands in the 100 to 300ms range on a desktop CPU, not sub-200ms guaranteed. Measure it, do not assume it.
+4. Leave your existing full whisper context on the ~1.9s natural-speech path, unchanged.
+
+If you still want KeywordRecognizer, add it strictly as an optional accelerator, never as the mechanism:
+- Gate every use behind if (PhraseRecognitionSystem.isSupported), and wrap construction in try/catch for UnityException.
+- Subscribe to PhraseRecognitionSystem.OnError and treat any SpeechError as permanent disable, not retry.
+- The game must be fully playable with it off. Ship with it defaulted off.
+
+Before any of that, run a 20-minute spike on your actual Windows 11 machine. It answers questions 2 and 3 at once, which no amount of further reading will:
+- Log PhraseRecognitionSystem.isSupported at startup. If false, KeywordRecognizer is dead on your target hardware and the whole question is moot.
+- If true, call Microphone.Start first, then start the KeywordRecognizer, and confirm both keep producing data for 60 seconds. Then reverse the order and repeat. Also check whether a running KeywordRecognizer degrades whisper's transcription quality, which is a subtler failure than an outright conflict.
+- Record the result in the project docs so this does not get re-litigated.
+
+One correction to the plan's framing: your project file C:\dev\dik-dik\Assets\Scripts\Producers\VoiceCommandProducer.cs already checks Microphone.devices at line 226, so there is an existing seam to hang the VAD gate on rather than adding a parallel system.
+
+SOURCES:
+https://docs.unity3d.com/6000.5/Documentation/ScriptReference/Windows.Speech.KeywordRecognizer.html
+https://docs.unity3d.com/6000.5/Documentation/ScriptReference/Windows.Speech.PhraseRecognitionSystem.html
+https://docs.unity3d.com/6000.5/Documentation/ScriptReference/Windows.Speech.SpeechError.html
+https://github.com/Unity-Technologies/UnityCsReference/blob/master/Runtime/Export/Windows/Speech.cs
+https://github.com/Unity-Technologies/UnityCsReference/blob/master/Runtime/Export/Windows/Speech.bindings.cs
+https://discussions.unity.com/t/keyword-recognizer-on-windows-11/1710923
+https://learn.microsoft.com/en-us/windows/whats-new/deprecated-features
+https://learn.microsoft.com/en-us/windows/mixed-reality/develop/unity/voice-input-in-unity
+https://learn.microsoft.com/en-us/windows/win32/coreaudio/exclusive-mode-streams
+https://learn.microsoft.com/en-us/uwp/api/windows.media.speechrecognition.speechrecognizer
+https://learn.microsoft.com/en-us/windows/ai/apis/speech-recognition
+https://learn.microsoft.com/en-us/answers/questions/4023126/the-removal-of-windows-speech-recognition-and-prog
+https://github.com/microsoft/MixedRealityToolkit-Unity/issues/7498
+https://github.com/microsoft/MixedRealityToolkit-Unity/issues/4161
+https://github.com/ggml-org/whisper.cpp/tree/master/examples/command
+https://github.com/ggml-org/whisper.cpp/discussions/297
+https://github.com/ggml-org/whisper.cpp/issues/1855
+https://github.com/Macoron/whisper.unity
+
+===== webgl =====
+VERDICT: PARTIAL â€” Q1 confirmed with an important correction to the failure mode and the fix mechanism; Q2 REFUTED (both proposed guards are wrong); Q3 mostly REFUTED (Brotli is no longer an itch.io problem); Q4 confirmed (WebGL2 only) plus three concrete regressions/no-ops found in the existing build script.
+
+DETAIL:
+1. WHAT BREAKS, AND WHEN
+
+It fails at BUILD time, not runtime, and not at C# compile time. The C# compiles fine. It dies in the Emscripten link step of the IL2CPP build with `undefined symbol: whisper_init_from_file_with_params` (and one line per bound function). Confirmed pattern: a native plugin with no WebGL binary produces `undefined symbol: <function>` at link (Unity Discussions "Unity WebGL and Native Plugins can't build"). Emscripten defaults to ERROR_ON_UNDEFINED_SYMBOLS=1, so the build stops.
+
+Why, specifically in this project (verified on disk):
+- C:\dev\dik-dik\Library\PackageCache\com.whisper.unity@de9ce92ad4c5\Runtime\com.whisper.unity.asmdef has `"includePlatforms": []` and `"excludePlatforms": []`. Both empty means every platform, WebGL included.
+- Runtime\Native\WhisperNative.cs line 15-19: `#if (UNITY_IOS || UNITY_VISIONOS || UNITY_ANDROID) && !UNITY_EDITOR` -> `"__Internal"`, `#else` -> `"libwhisper"`. WebGL falls into the `#else` branch, so ~40 `[DllImport("libwhisper")]` declarations are emitted for a library that does not exist.
+- The package ships Plugins/{Android,iOS,Linux,MacOS,Windows} and NO Plugins/WebGL. Nothing to link against.
+
+Unity's Web manual only accepts `.a` (GNU archive of WebAssembly `.o`) since 2021.2, or legacy `.bc`. A Windows `.dll` is never a candidate; Web has no dynamic library loading, everything is statically linked, and the Emscripten version used to compile the plugin must match Unity's exactly.
+
+Which exclusion mechanism is correct, in order:
+- Plugin Inspector platform settings: NOT the fix here. The .dll/.so/.dylib meta files already restrict themselves to their own platforms, and the plugin binaries are not what the linker is complaining about. Worse, the package lives in Library/PackageCache, which is immutable, so the Inspector is greyed out and any meta edit gets wiped on reimport.
+- `#if UNITY_WEBGL` around your own code: NECESSARY BUT NOT SUFFICIENT. It removes Assets/Scripts/Producers/VoiceCommandProducer.cs from the build, but com.whisper.unity.dll is still compiled and, being an autoReferenced package assembly whose MonoBehaviours (WhisperManager) are reachable, its DllImports still reach IL2CPP.
+- Assembly definition constraint: THE FIX. `"excludePlatforms": ["WebGL"]` on the package's runtime asmdef. `WebGL` is the correct platform string (Unity's Assembly Definition file format reference uses it verbatim in its excludePlatforms example). includePlatforms and excludePlatforms cannot both be non-empty.
+- To edit that asmdef you must first embed the package: copy Library\PackageCache\com.whisper.unity@de9ce92ad4c5 to Packages\com.whisper.unity. Unity then treats it as mutable and Package Manager stops resolving the git URL. This also pins a dependency that currently has no registry release. The existing comment at Assets\Editor\DikdikBuild.cs lines 74-84 already describes exactly this, and it is correct.
+
+Note for later: whisper.unity's README lists WebGL as supported but links to issue #20, which was opened 2023-04-29, has no maintainer response and no PR. Treat WebGL as unsupported. One assumption in that issue is now stale: Unity 6.5's Web manual says the Microphone class is fully supported on Web given `Application.RequestUserAuthorization` and HTTPS hosting. Mic capture is no longer the blocker. The missing WebAssembly build of whisper.cpp is.
+
+2. THE COMPILE GUARD
+
+Both proposals are wrong.
+- `#if UNITY_STANDALONE_WIN && !UNITY_EDITOR` compiles the code out of the Editor, so you cannot test speech in Play mode on your own machine. UNITY_STANDALONE_WIN tracks the active build target, and UNITY_EDITOR is true in the Editor, so the two together are never both satisfied while you are working.
+- ENABLE_WINMD_SUPPORT is unrelated. It is the WinRT/Windows Runtime metadata guard for UWP/Windows Store builds. UnityEngine.Windows.Speech on desktop is not gated by it.
+
+Correct guard: `#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN`. UNITY_EDITOR_WIN reflects the Editor's host OS, not the build target, so the code compiles and runs in Play mode even with WebGL as the active target (Editor scripts compile against the Editor's own UnityEngine assemblies, which contain the type). In a WebGL player neither symbol is defined, so it is stripped.
+
+KeywordRecognizer, DictationRecognizer and PhraseRecognitionSystem live in the UnityEngine.Windows.Speech namespace in UnityEngine.CoreModule. Unity's own scripting reference states the restriction plainly: "Keyword recognizer is currently functional only on Windows 10."
+
+Practical note: this is currently moot. I grepped Assets\Scripts and the project uses whisper.unity only. There is no UnityEngine.Windows.Speech usage anywhere. Only apply this if you add a Windows-native fallback recognizer.
+
+3. ITCH.IO IN 2026
+
+Brotli is NOT a problem anymore. itch.io's own HTML5 docs: "If the filename ends with the extension .br then we'll assume that the content is Brotli compressed and the content-encoding will be set to br." Gzip is also handled, by content sniffing rather than extension. Both Unity compression formats therefore work on itch without Decompression Fallback.
+
+Player Settings that matter (Edit > Project Settings > Player > Web):
+- Publishing Settings > Compression Format: Brotli (smallest) or Gzip. Both fine on itch. Gzip is the Unity default and builds faster.
+- Publishing Settings > Decompression Fallback: leave DISABLED (the default). Enabling it renames files to `.unityweb`, which defeats itch's extension-based Brotli detection, bloats the loader, and disables WebAssembly streaming. Unity's own deploy page says enabling it "results in a large loader size and a less efficient loading scheme."
+- Publishing Settings > Data Caching: enable, so returning players skip the .data download.
+- Publishing Settings > Name Files As Hashes: optional, helps cache busting.
+- Resolution and Presentation > WebGL Template: Minimal, or the community "Better Minimal WebGL Template" that itch.io's own docs link to by name for Unity.
+- Embed Options > Frame Options > "SharedArrayBuffer support" is an itch dashboard setting, not a Unity one. Only tick it if you enable Unity multithreading. Leave both off. itch sends COOP: same-origin and COEP: credentialless on the embed page, and Safari still needs a popup window.
+
+Limits. The binding constraints are the HTML5 playable limits, not the upload cap:
+- Extracted content total: not greater than 500 MB
+- Any single extracted file: not greater than 200 MB
+- Not more than 1,000 files after extraction
+- Path plus filename: not more than 240 characters
+- ZIP must contain index.html at the root
+Upload cap itself: the web uploader accepts up to 1 GB by default (itch staff say it can be lifted to 2 GB on request); butler has no practical limit but does not change the HTML5 limits above.
+
+Concrete problem in this project: C:\dev\dik-dik\Assets\StreamingAssets\Whisper contains ggml-tiny.bin (77.7 MB) and ggml-tiny.en.bin (77.7 MB), 148 MB total. On Web, StreamingAssets are copied into the build output and fetched by URL via UnityWebRequest, not packed into the .data file. They will ship. That is 148 MB of dead weight in a build with no voice, and it eats a third of itch's 500 MB extracted budget.
+
+4. WEBGL2 AND UNITY 6.5 REGRESSIONS
+
+WebGL 2.0 is required. Unity 6.5's Web graphics page: "WebGL2 is the default graphics API and is compatible with most devices and browsers." WebGL 1.0 is no longer listed as an option. WebGPU exists but the manual says it "is experimental and not recommended for production usage." Do not enable it for itch.
+
+Things to avoid, and three found in the current build script:
+- Code Optimization = Runtime Speed, and LTO. Unity issue tracker has "[WebGL] Build fails and Shader errors are logged when Code Optimisation is set to Runtime Speed." A 2026 community write-up on Unity Discussions reports the same combination breaking third-party packages that use unsafe code or unmanaged memory. whisper.unity's runtime asmdef has allowUnsafeCode true, so this is directly relevant if you ever ship a Web build with it in. Use the default.
+- Multithreading / WebGL.threadsSupport: multiple open issue tracker entries for build failures and an Editor crash. It also requires COOP/COEP, which on itch means the SharedArrayBuffer checkbox and Chrome-first behaviour. Leave off.
+- DikdikBuild.cs line 87, `PlayerSettings.WebGL.memorySize = 512`, is a no-op. Unity's scripting reference: "This setting has been deprecated and does not have any effect on WebAssembly builds." Use Initial Memory Size / Memory Growth Mode / Maximum Memory Size instead.
+- DikdikBuild.cs line 90, `exceptionSupport = WebGLExceptionSupport.None`. Unity's default is "Explicitly Thrown Exceptions Only," and there is an issue tracker entry titled "Project build fails and errors are thrown when building for WebGL platform with Exceptions disabled." With None you also lose any diagnostic when a null reference hits in a browser you cannot attach a debugger to. Keep the default for the itch build.
+- Unity 6000.5.0f1 release notes do list Web fixes (UUM-134978 WebGPU shader compiler, UUM-126250 missing malloc/free with -sERROR_ON_UNDEFINED_SYMBOLS=0), so the 6.5 line was still churning on Web. 6000.5.2f1 release notes contain no Web items. Patch releases past .2 exist (.3, .4). Nothing forces an upgrade, but if the Web build misbehaves, moving up the 6000.5.x patch line is the cheapest first move.
+
+RECOMMENDATION:
+Do these six things, in this order.
+
+1. Embed the package. Copy C:\dev\dik-dik\Library\PackageCache\com.whisper.unity@de9ce92ad4c5 to C:\dev\dik-dik\Packages\com.whisper.unity and delete the "com.whisper.unity" git URL line from Packages\manifest.json. Unity picks up embedded packages by folder name.
+
+2. Exclude it from Web. In Packages\com.whisper.unity\Runtime\com.whisper.unity.asmdef change `"excludePlatforms": []` to `"excludePlatforms": ["WebGL"]`. Leave includePlatforms empty. Do the same on Tests\Runtime\com.whisper.unity.tests.asmdef.
+
+3. Guard your own call sites. Wrap the whole of Assets\Scripts\Producers\VoiceCommandProducer.cs in `#if !UNITY_WEBGL` / `#endif`, and guard the five references to it: Assets\Scripts\Game\Bootstrap.cs lines 100 and 121, Assets\Scripts\Spike\SpikeRunner.cs line 42, Assets\Editor\BootSceneBuilder.cs line 148, Assets\Editor\SpikeSceneBuilder.cs line 73. Use `#if !UNITY_WEBGL`, not `#if UNITY_STANDALONE_WIN`, so Editor Play mode and the Windows build are untouched. Expect "missing script" warnings on the Boot scene in a Web build; that is harmless as long as KeyboardCommandProducer is present, but confirm Bootstrap does not require the voice producer to exist.
+
+4. Keep the 148 MB of models out of the Web build. Add an IPreprocessBuildWithReport that moves Assets\StreamingAssets\Whisper aside when report.summary.platform == BuildTarget.WebGL and an IPostprocessBuildWithReport that puts it back, or simply delete Builds\Web\StreamingAssets\Whisper after the build in DikdikBuild.Run.
+
+5. Fix DikdikBuild.Web. Delete line 87 (`PlayerSettings.WebGL.memorySize = 512`, deprecated no-op). Change line 90 to `WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly`. Optionally switch line 86 to `WebGLCompressionFormat.Brotli` for a smaller download, since itch.io handles `.br` by extension. Add `PlayerSettings.WebGL.decompressionFallback = false;` and `PlayerSettings.WebGL.dataCaching = true;` explicitly so the setting is in the diff rather than in a binary asset. Leave Code Optimization at the default and leave threadsSupport off.
+
+6. Upload. Zip the contents of Builds\Web so index.html sits at the ZIP root, not inside a folder. On the itch project page set Kind of project = HTML, tick "This file will be played in the browser" on the upload, set a fixed viewport (1280x720 to match PlayerSettings), and leave "SharedArrayBuffer support" under Embed Options > Frame Options unticked. Check the extracted total stays under 500 MB and the file count under 1,000.
+
+One judgement call: do not spend time trying to get whisper.cpp running on Web. whisper.cpp has a working WebAssembly target upstream, but whisper.unity has no WebGL binaries, no `.a` archives built against Unity's Emscripten version, and issue #20 has sat unanswered since April 2023. Ship the browser build keyboard-only, say so on the itch page, and point people at the Windows download for the voice version. That is the honest framing anyway: the voice control is the point of the project, and the Web build is a trailer for it.
+
+SOURCES:
+https://docs.unity3d.com/6000.5/Documentation/Manual/webgl-native-plugins-with-emscripten.html
+https://docs.unity3d.com/6000.5/Documentation/Manual/plug-in-inspector.html
+https://docs.unity3d.com/6000.4/Documentation/Manual/assembly-definition-file-format.html
+https://docs.unity3d.com/6000.5/Documentation/Manual/webgl-deploying.html
+https://docs.unity3d.com/6000.5/Documentation/Manual/class-PlayerSettingsWebGL.html
+https://docs.unity3d.com/6000.5/Documentation/Manual/webgl-graphics.html
+https://docs.unity3d.com/6000.5/Documentation/Manual/webgl-technical-overview.html
+https://docs.unity3d.com/6000.5/Documentation/Manual/webgl-audio.html
+https://docs.unity3d.com/6000.5/Documentation/Manual/webgl-memory.html
+https://docs.unity3d.com/6000.5/Documentation/Manual/StreamingAssets.html
+https://docs.unity3d.com/6000.5/Documentation/ScriptReference/PlayerSettings.WebGL-memorySize.html
+https://docs.unity3d.com/ScriptReference/Windows.Speech.KeywordRecognizer.html
+https://unity.com/releases/editor/whats-new/6000.5.0f1
+https://issuetracker.unity3d.com/issues/webgl-build-fails-and-shader-errors-are-logged-when-code-optimisation-is-set-to-runtime-speed
+https://issuetracker.unity3d.com/issues/webgl-cant-disable-exception-support-without-the-build-failing
+https://issuetracker.unity3d.com/issues/webgl-build-fails-when-multithreading-is-turned-on
+https://discussions.unity.com/t/unity-webgl-and-native-plugins-cant-build/945895
+https://github.com/Macoron/whisper.unity
+https://github.com/Macoron/whisper.unity/issues/20
+https://itch.io/docs/creators/html5
+https://itch.io/t/2025776/experimental-sharedarraybuffer-support
+https://itch.io/t/46291/uploading-large-games-faq
+
+===== cinematic =====
+VERDICT: PARTIAL â€” the plan's core is right (procedural, code-generated, extend GradientSky, coroutine-driven camera), but the "URP" premise is wrong for this project, and the assumption that audio sync is a tuning problem is wrong: it is an architecture problem, and the existing VoiceArbiter already has the drift pattern baked in.
+
+DETAIL:
+PIPELINE CORRECTION (load-bearing, changes several answers)
+
+This project is Built-In Render Pipeline, not URP. Evidence:
+- C:\dev\dik-dik\ProjectSettings\GraphicsSettings.asset line 49: `m_CustomRenderPipeline: {fileID: 0}`; all six quality levels in QualitySettings.asset: `customRenderPipeline: {fileID: 0}`.
+- C:\dev\dik-dik\Packages\manifest.json has no `com.unity.render-pipelines.universal`.
+- C:\dev\dik-dik\Assets\Shaders\GradientSky.shader and HazardOutline.shader use `CGPROGRAM`, `UnityCG.cginc`, `UnityObjectToClipPos` â€” BiRP-only syntax.
+- C:\dev\dik-dik\Assets\Editor\Environment.cs line 164: `Shader.Find("Standard")`.
+- HazardOutline.shader line 8 states it outright: "this project uses the built-in render pipeline".
+Consequence: URP camera stacking is not a pitfall because it does not exist here. Do not write URP code. The BiRP equivalent is `Camera.depth` ordering plus Clear Flags (Depth Only / Don't Clear).
+
+1. CHEAPEST STARFIELD AND PLANET
+Skybox for stars, one primitive sphere for the planet. Particles and quads are the wrong tool: stars must not parallax as the camera translates, and a skybox is direction-only so it gets that for free at one fullscreen pass with no per-object cost or GC.
+
+Two concrete blockers in the existing shader (GradientSky.shader lines 76-83):
+- Stars are gated to the upper hemisphere: `if (h > 0.05)` with a `saturate(h * 2.0)` falloff. In space the camera looks sideways and down, so most of the frame would have no stars at all.
+- `step(1.0 - _StarAmount * 0.02, s)` produces a hard one-cell star. Under slow cinematic rotation these crawl and alias badly. Needs `smoothstep`.
+
+2. DRIVING THE CAMERA
+Coroutine. Confirmed, and the alternatives are worse than the question assumes because neither package is installed:
+- Cinemachine: `com.unity.cinemachine` is absent from both manifest.json and packages-lock.json, and it is not installed by default in Unity 6. It solves problems this shot does not have (dynamic targets, collision avoidance, gameplay blends) and would fight `CameraFollow.LateUpdate`.
+- Timeline: also absent. packages-lock.json contains only `com.unity.modules.director` (the Playables runtime module), NOT `com.unity.timeline`, so `TimelineAsset` and `TrackAsset` do not exist in this project. Building a timeline from an Editor script means adding a package, creating asset plus sub-assets through AssetDatabase, and binding tracks, to reproduce what a handful of `Vector3.Lerp` calls do. Timeline's clock is also frame-driven by default, so it does not solve sync either.
+- The project already has the pattern: EndingSequence.cs runs a whole multi-beat sequence in a coroutine with realtime timing and per-frame caption updates.
+
+3. PITFALLS
+- Skybox in batch-generated scenes: `RenderSettings.skybox` is per-scene lighting data saved with the scene, so Environment.ApplyLighting line 34 survives batch generation, provided the material asset exists on disk first. Current code does that correctly via `AssetDatabase.CreateAsset` inside MakeSky.
+- Runtime sky swap: Unity docs for RenderSettings.skybox state "If you change the skybox in playmode, you have to use the DynamicGI.UpdateEnvironment function call to update the ambient probe." Here ApplyLighting sets `AmbientMode.Trilight` with explicit colours (Environment.cs lines 49-52), so ambient is not skybox-driven and no GI update is needed â€” but that also means the light will NOT change as you descend unless you lerp `RenderSettings.ambientSkyColor`/`ambientEquatorColor` yourself.
+- Asset mutation: MakeSky returns a material loaded from `Assets/Materials/GradientSky_{key}.mat`. Calling SetFloat on it in play mode edits the asset and the change persists in the project after you stop.
+- Shader stripping: the sky material is scene-referenced so it and its shader are included. Only a material introduced by `Resources.Load` or assigned purely at runtime risks stripping.
+- First-frame hitch: real. Unity 6 manual "Prewarm shaders" confirms first use of a variant compiles it and builds a PSO, which stutters. The new `GraphicsStateCollection` API is explicitly experimental and "not ready for production use", so it is not proportionate here.
+- Audio/visual drift: this is the real risk and the existing code shows the pattern. VoiceArbiter.Update (line 274-283) accumulates its own clock `_clock += Time.unscaledDeltaTime` and ends a line when `_clock >= _lineEndsAt`, where `_lineEndsAt = _clock + clip.length` (SpeechLine.Seconds returns `Clip.length`). That is a frame clock racing an audio clock. Unity docs: dspTime "is based on the actual number of samples the audio system processes" and is "much more precise than the time obtained via the Time.time property". Each `source.Play()` also begins on the next mix-buffer boundary, so per-line error accumulates across a multi-line briefing.
+
+4. HIGHLIGHTING
+The project already has the parts. `Dikdik/HazardOutline` (inverted hull) plus HazardOutline.cs, which already builds a duplicate-mesh child with an instanced material, toggles it, and has an `alwaysOn` flag (line 31). Two caveats: it is `[RequireComponent(typeof(MeshFilter))]` and reads `GetComponent<MeshFilter>().sharedMesh`, so it only works on single-mesh objects â€” Kenney props placed by `Environment.PlaceModel` are multi-part hierarchies with meshes on children. And the outline already carries an established meaning in Level 3 ("this is a hazard"), so reusing it for narration muddles a signal that is already spent.
+
+For the "legible without narration" half, the Game Accessibility Guidelines are explicit. Basic: "Provide subtitles for all important speech" and "Ensure no essential information is conveyed by sounds alone". Intermediate: "Provide a visual indication of who is currently speaking". CommsDisplay.ShowSupervisorLine(line, briefing: true) already does caption plus CONTROL speaker badge, already respects `GameSettings.HighContrast` and `GameSettings.TextScale`, and already prints "Briefing. Press Space to skip." (line 120) â€” so a skip path exists and any absolute-time cue schedule would break on it.
+
+RECOMMENDATION:
+Build it as one camera, one coroutine, cued off events the project already fires. Specifics:
+
+CAMERA. New `IntroCinematic` MonoBehaviour holding an ordered list of shots (position, look-at point, duration), populated by the scene builder in code. Disable `CameraFollow` for the duration, then at the end call the existing `CameraFollow.SetTarget(rover)` â€” it calls `SnapToTarget()` internally (CameraFollow.cs line 68), so the handoff into normal gameplay framing is one call with no pop. Make the last cinematic keyframe equal `rover.TransformPoint(offset)` so the snap is invisible. Ease with smoothstep, not linear. Use unscaled time throughout, matching VoiceArbiter.
+
+SYNC. Do not give the cinematic its own timer. Hang camera beats and highlight cues off `VoiceArbiter.LineStarted` / `LineFinished` / `SequenceFinished`, which already exist (VoiceArbiter.cs line 87-89). The camera advances to shot N when line N starts. Drift becomes structurally impossible, and it survives `SkipCurrentSequence()`, which an absolute schedule does not. Only if you decide to record the briefing as a single clip should you switch to `double startDsp = AudioSettings.dspTime` and evaluate the path against `AudioSettings.dspTime - startDsp`, interpolating with unscaled delta between mix-buffer steps since dspTime advances in jumps.
+
+SKY. Add two properties to GradientSky.shader rather than writing a second shader:
+- `_StarsEverywhere` (Range 0,1): replace the `if (h > 0.05)` gate and the `saturate(h*2.0)` factor with `lerp(saturate(h*2.0), 1.0, _StarsEverywhere)` so stars cover the full sphere in space and thin toward the horizon on the surface.
+- `_SpaceBlend` (Range 0,1): lerp horizon/ground colours toward the zenith colour so one material drives "pure space" at 0 and the existing surface sky at 1. The descent is then one float animated over the shot.
+Also swap `step(...)` for `smoothstep` on the star hash to stop the crawl during slow pans.
+Instantiate a runtime copy before animating: `RenderSettings.skybox = new Material(skyAsset)` in Awake, animate the copy, or you will permanently dirty `Assets/Materials/GradientSky_*.mat` every time you enter play mode.
+
+PLANET. `GameObject.CreatePrimitive(PrimitiveType.Sphere)` (~515 verts, one draw call), Standard material, `DestroyImmediate` its SphereCollider, lit by the directional light `Environment.ApplyLighting` already returns â€” the terminator you get free is what sells it as a planet. Do not put the planet in the skybox: it has to translate and grow relative to the camera, which a skybox cannot do. One camera, near clip 0.3-1.0 and far clip ~5000; depth precision is a far/near ratio problem, so avoid near 0.01 with a large far. No second camera needed, and no camera stacking to get wrong.
+
+HITCH. Fade in from black over the first ~0.5s and start audio only after a couple of `yield return new WaitForEndOfFrame()`, so the one new shader variant (sky in space mode) compiles behind a static frame. Avoid any `Resources.Load` mid-shot; preload the briefing clips before the coroutine starts.
+
+HIGHLIGHT. Build a bracket/ring highlight in code rather than reusing HazardOutline: a thin unlit ring or four corner brackets from primitives, parented to the target, camera-facing, scaled from the combined renderer bounds. That works on the multi-part Kenney hierarchies where HazardOutline's single-`sharedMesh` assumption fails, and it keeps the hazard outline's meaning intact. Pulse it (motion), and attach a short text label naming the object, honouring `GameSettings.HighContrast` and `GameSettings.TextScale`. Fire the highlight from the same `LineStarted` handler that drives the caption, so cue and words cannot desync â€” the same argument SpeechLine.cs already makes in its own doc comment. Do not signal by colour alone: shape plus pulse plus label.
+
+WHAT NOT TO DO. Do not add Cinemachine or Timeline. Do not add URP. Do not write a second skybox shader. Do not build a second camera.
+
+SOURCES:
+https://docs.unity3d.com/6000.4/Documentation/ScriptReference/RenderSettings-skybox.html
+https://docs.unity3d.com/ScriptReference/DynamicGI.UpdateEnvironment.html
+https://docs.unity3d.com/ScriptReference/AudioSettings-dspTime.html
+https://docs.unity3d.com/6000.2/Documentation/Manual/shader-prewarm.html
+https://docs.unity3d.com/6000.3/Documentation/Manual/shader-pso-introduction.html
+https://docs.unity3d.com/6000.2/Documentation/Manual/com.unity.cinemachine.html
+https://docs.unity3d.com/6000.2/Documentation/Manual/urp/camera-stacking.html
+https://docs.unity3d.com/6000.2/Documentation/Manual/class-Camera.html
+https://docs.unity3d.com/ScriptReference/Time-maximumDeltaTime.html
+https://docs.unity3d.com/Packages/com.unity.timeline@1.6/api/UnityEngine.Timeline.TrackAsset.html
+https://unity.com/blog/engine-platform/shader-variants-optimization-troubleshooting-tips
+https://gameaccessibilityguidelines.com/full-list/
+https://discussions.unity.com/t/cant-install-cinemachine-in-unity-6-project/1538713
+https://www.gamedeveloper.com/audio/coding-to-the-beat---under-the-hood-of-a-rhythm-game-in-unity
+
+===== accessibility =====
+VERDICT: PARTIAL â€” most of the eight areas map to real published guidelines, but four are misnamed or do not exist as stated, and one claim already in the README (C:\dev\dik-dik\README.md line 171-172) is factually wrong.
+
+DETAIL:
+## 0. The claim in the README that is wrong
+
+C:\dev\dik-dik\README.md line 171: "**the Speech category is empty at Basic level.**"
+
+REFUTED. The Speech category has exactly one Basic guideline, and it is the single most relevant guideline in the entire set for this project:
+
+"Ensure that speech input is not required, and included only as a supplementary / alternative input method" â€” Basic, Speech.
+https://gameaccessibilityguidelines.com/ensure-that-speech-input-is-not-required-and-included-only-as-a-supplementary-alternative-input-method/
+
+Confirmed three ways: the full list, the /basic/ index, and the guideline page's own tier label. Its rationale: relying on speech recognition excludes players who cannot speak, cannot speak clearly enough for recognition, or cannot process language; "controls and menu options should be provided for all voice commands."
+
+The defensible version of the observation is different and still interesting: the Speech category holds 8 entries total across all three tiers, only 1 at Basic, and 3 of the 5 Intermediate entries are about multiplayer chat rather than voice input. So voice input as a control scheme is covered by exactly three published guidelines. That is a thin but real body of guidance, not an empty one.
+
+---
+
+## 1. Exact titles and tiers for the eight requested areas
+
+Tier and category taken from https://gameaccessibilityguidelines.com/full-list/ and cross-checked on the individual pages.
+
+**(a) Subtitles for all speech** â€” the guideline does NOT say "all speech".
+- "Provide subtitles for all important speech" â€” Basic, Hearing. https://gameaccessibilityguidelines.com/provide-subtitles-for-all-important-speech/ (page defines important speech as "that which would make a significant impact to the experience without; either narratively or to someone's ability to play")
+- "If any subtitles / captions are used, present them in a clear, easy to read way" â€” Basic, Hearing
+- "Provide subtitles for supplementary speech" â€” Intermediate, Hearing
+- "Allow subtitle/caption presentation to be customised" â€” Intermediate, Hearing. https://gameaccessibilityguidelines.com/allow-subtitle-caption-presentation-to-be-customised/
+- Cross-standard: XAG 104: Subtitles and Captions.
+
+**(b) No essential information by sound alone**
+- "Ensure no essential information is conveyed by sounds alone" â€” Basic, Hearing. https://gameaccessibilityguidelines.com/ensure-no-essential-information-is-conveyed-by-sounds-alone/
+- Companion: "Ensure that all important supplementary information (eg. the direction you are being shot from) conveyed by audio is replicated in text / visuals" â€” Intermediate, Hearing
+- Cross-standard: XAG 103: Additional Channels for Visual and Audio Cues.
+
+**(c) Remappable controls**
+- "Allow controls to be remapped / reconfigured" â€” Basic, Motor. https://gameaccessibilityguidelines.com/allow-controls-to-be-remapped-reconfigured/
+- XAG 107: Input: "Players should be given the option to remap all of the controls within the game itself, regardless of platform-level remapping support that might be present." XAG 107 also warns that remapping alone is not enough and names speed, complexity and duration as separate barriers.
+
+**(d) Adjustable game speed**
+- "Include an option to adjust the game speed" â€” Basic, Motor. https://gameaccessibilityguidelines.com/include-an-option-to-adjust-the-game-speed/ (the same title also appears at Intermediate under Cognitive; cite the Motor/Basic listing)
+
+**(e) High contrast / colour-blind safe** â€” this is two separate Basic guidelines, not one.
+- "Provide high contrast between text/UI and background" â€” Basic, Vision. https://gameaccessibilityguidelines.com/provide-high-contrast-between-text-ui-and-background/
+- "Ensure no essential information is conveyed by a fixed colour alone" â€” Basic, Vision. https://gameaccessibilityguidelines.com/ensure-no-essential-information-is-conveyed-by-a-fixed-colour-alone/ (rationale cites ~8-10% of males with red-green difficulty; explicitly discourages full-palette colour filters as "difficult to implement effectively and poorly received by colorblind gamers"; recommends presets for deuteranopia, protanopia, tritanopia plus simulator testing)
+- "Provide an option to adjust contrast" â€” Intermediate, Vision. https://gameaccessibilityguidelines.com/provide-an-option-to-adjust-contrast/
+- "Provide a choice of text colour, low/high contrast choice as a minimum" â€” Intermediate, Cognitive. https://gameaccessibilityguidelines.com/provide-a-choice-of-text-colour-low-high-contrast-choice-as-a-minimum/
+- Cross-standard: XAG 102: Contrast.
+
+**(f) No failure state / difficulty options** â€” there is NO published guideline titled "no failure state". Do not claim one.
+- "Offer a wide choice of difficulty levels" â€” Basic, General. https://gameaccessibilityguidelines.com/offer-a-wide-choice-of-difficulty-levels/
+- "Include a means of practicing without failure, such as a practice level or sandbox mode" â€” Intermediate, Cognitive. https://gameaccessibilityguidelines.com/include-a-means-of-practicing-without-failure-such-as-a-practice-level-or-sandbox-mode/  â† this is the closest thing to "no failure state", and it is Intermediate, not Basic
+- "Allow difficulty level to be altered during gameplay, either through settings or adaptive difficulty" â€” Intermediate, General. https://gameaccessibilityguidelines.com/allow-difficulty-level-to-be-altered-during-gameplay-either-through-settings-or-adaptive-difficulty/
+- "Offer a means to bypass gameplay elements that aren't part of the core mechanic, via settings or in-game skip option" â€” Intermediate, General
+- XAG 108: Game Difficulty Options: "Provide players with the option to change difficulty at any time without losing game progress, regardless of whether they have already started the game."; "Provide an ultra-low difficulty mode for the game that enables a wide range of players to progress through the narrative."; "Ensure that the language used to describe the difficulty presets is descriptive and doesn't denigrate the player (for example, 'Wimp Mode')."
+
+**(g) Settings available before and during play** â€” no single guideline carries this title. It is assembled from four:
+- "Ensure that all settings are saved/remembered" â€” Basic, General. https://gameaccessibilityguidelines.com/ensure-that-all-settings-are-saved-remembered/
+- "Allow the game to be started without the need to navigate through multiple levels of menus" â€” Basic, Cognitive
+- "Ensure subtitles/captions are or can be turned on before any sound is played" â€” Intermediate, Hearing. https://gameaccessibilityguidelines.com/ensure-subtitles-captions-are-or-can-be-turned-on-before-any-sound-is-played/  â† the only published "before play" requirement
+- "Indicate / allow reminder of controls during gameplay" â€” Intermediate, Cognitive
+- XAG 120 is the cross-standard hook: "Some games, including Forza Horizon 4, Grounded, and Minecraft Dungeons, provide prompts to configure accessibility settings on initial launch or from the main menu screens." XAG 108 adds that games "should be pausable at any time (excluding saving/loading screens)".
+- The README's own design principle at line 98 ("Accessibility settings are on from first launch, never unlocked") is stronger than any published guideline. That is fine, but present it as a design position, not a guideline citation.
+
+**(h) Voice input as an alternative control scheme** â€” the published guideline is the INVERSE of how this is usually framed. There is no guideline saying "provide voice input". There are guidelines saying voice input must never be the only input.
+- "Ensure that speech input is not required, and included only as a supplementary / alternative input method" â€” Basic, Speech (URL above)
+- "Ensure that all key actions can be carried out by digital controls (pad / keys / presses), with more complex input (eg. analogue, speech, gesture) not required, and included only as supplementary / alternative input methods" â€” Intermediate, Motor. https://gameaccessibilityguidelines.com/ensure-that-all-key-actions-can-be-carried-out-by-digital-controls-pad-keys-presses-with-more-complex-input-eg-analogue-speech-gesture-not-required-and-included-only-as-supplementary-al/
+- XAG 107: "Any gameplay-critical input that uses speech or motion controls as a default has an alternative digital input mechanism". XAG 107's mobile section lists "Speech input" among input types to "Avoid or provide alternative input options for".
+- Note the near-duplicate at Vision/Advanced omits "speech" from the parenthetical, so cite the Motor/Intermediate version.
+
+---
+
+## 2. Is there a published guideline about the RISKS of voice input as sole input? Yes â€” cite this pair.
+
+The correct citation for the accent problem is not one guideline but two, and the second one names accents explicitly:
+
+1. "Ensure that speech input is not required, and included only as a supplementary / alternative input method" â€” Basic, Speech. This is the guideline that keyboard parity satisfies. It covers players who cannot speak, cannot speak clearly enough for recognition, or cannot process language.
+
+2. "Base speech recognition on individual words from a small vocabulary (eg. 'yes' 'no' 'open') instead of long phrases or multi-syllable words" â€” Intermediate, Speech. https://gameaccessibilityguidelines.com/base-speech-recognition-on-individual-words-from-a-small-vocabulary-eg-yes-no-open-instead-of-long-phrases-or-multi-syllable-words/
+Exact rationale text: "Most people with speech impairments are still able to communicate vocally in some way, but with impaired range or accuracy." and "Matching against a few simple words allows more flexibility than matching against complex phrases, making it easier to avoid problems with not only minor speech impairments but also regional accents."
+This is the single best citation for the mishearing problem. It is the only place in the published game accessibility corpus where accent variation is named as a recognition failure mode.
+
+3. Non-verbal fallback: "Base speech recognition on hitting a volume threshold (eg. 50%) instead of words" â€” Advanced, Speech. https://gameaccessibilityguidelines.com/base-speech-recognition-on-hitting-a-volume-threshold-eg-50-instead-of-words/ This is the published guideline that the README's "record any sound at all" remapping feature (line 248) actually satisfies, at Advanced tier. That is a genuine, uninflated win worth claiming.
+
+What is NOT covered anywhere: background noise degrading speech INPUT. The Hearing/Intermediate guideline "Keep background noise to minimum during speech" is about audio output mixing, not microphone conditions. Do not repurpose it â€” a reviewer will catch that.
+
+Privacy is barely covered. The only hook in the game guidelines is XAG 119 and XAG 120, both of which list in their "Potential player impact" tables: "players who don't want to share their voice online for privacy reasons, players who don't have a microphone or headset". That is about voice chat, not local voice control. It is a weak citation and should be labelled as adjacent, not on-point.
+
+Empirical backing for the accent claim (use this instead of stretching a guideline): Koenecke et al., "Racial disparities in automated speech recognition", PNAS 2020, average WER 0.35 for Black speakers vs 0.19 for white speakers across five commercial ASR systems. And the EdAcc corpus, where Whisper's WER rises from 2.7% on LibriSpeech test-clean to 19.7% on accented conversational English, with 20-30%+ on Nigerian and Jamaican varieties. The README's existing EdAcc/AfriSpeech claim at lines 189-193 checks out.
+
+---
+
+## 3. Guidance on retaining/replaying recorded audio, and privacy for voice interfaces
+
+No game accessibility standard covers this. Verified negative across all four bodies:
+- Game Accessibility Guidelines: no guideline on audio retention, recording, or consent. The full list has none.
+- XAG 101-123: no privacy guideline. XAG 119/120 mention privacy only in the impact tables quoted above.
+- APX (AbleGamers): 12 access patterns, none about data. The patterns are Flexible Controllers, Same Controls But Different, Improved Precision, Flexible Text Entry, Second Channel, Clear Channels, Distinguish This From That, Flexible Displays, Clear Text, Personal Interface, Leave It There, Do More With Less.
+- WCAG2ICT ("Guidance on Applying WCAG 2 to Non-Web Information and Communications Technologies", W3C Group Note, 11 December 2025): does not address privacy at all, and mentions speech only inside the virtual keyboard definition ("eye-gaze, morse code, speech, and switches (e.g. sip-and-puff) have all been used by virtual keyboards as input"). WCAG 2 has no privacy success criteria. Citing WCAG2ICT for the discard-audio decision would be a category error.
+
+The correct authorities are data protection and web platform privacy:
+
+1. GDPR Article 5(1)(c) data minimisation: personal data shall be "adequate, relevant and limited to what is necessary in relation to the purposes for which they are processed". Article 5(1)(e) storage limitation: "kept in a form which permits identification of data subjects for no longer than is necessary for the purposes for which the personal data are processed". Article 25 adds data protection by design and by default. Discarding the buffer once the transcript exists is textbook 5(1)(c) plus 5(1)(e).
+
+2. EDPB Guidelines 02/2021 on virtual voice assistants, version 2.0, adopted 7 July 2021 â€” the most on-point regulator guidance that exists for voice interfaces. It states that after executing a user's command the personal data should be deleted immediately unless there is a legal basis for further processing, that recordings made by mistake should be deleted immediately after detection, and that retaining voice data indefinitely until a deletion request is not in line with the storage limitation principle. This is directly quotable support for discard-after-transcription.
+
+3. W3C Web Speech API (Draft Community Group Report, Web Audio Working Group): "User agents must only start speech input sessions with explicit, informed user consent"; "User agents must give the user an obvious indication when audio is being recorded"; warns that "Speech input could potentially be used to eavesdrop on users. Malicious webpages could use tricks such as hiding the input element or otherwise making the user believe that it has stopped recording speech while continuing to do so." The spec now carries a processLocally attribute for on-device recognition. This supports both the discard decision and the on-device decision, and it supports adding a visible mic-live indicator, which the game should have and which is cheap.
+
+One honesty flag for the author. The README describes recording sound templates for non-verbal remapping (line 248: "During remapping, record any sound at all", and line 262: "Template matching on raw audio"). If the game stores those templates, it retains user audio, and the README's current claim "No network, no account, no audio leaving the machine" (line 183) is true but incomplete. Say where the templates live on disk, that they never leave the machine, and how a player deletes them. That turns a potential contradiction into a design decision.
+
+---
+
+## 4. What an HCI researcher reviewing this would expect that a hobbyist misses
+
+Written for a PIRG/TAUCHI reader. Blunt, in rough priority order.
+
+1. **A denominator.** "81.2% on day 1" is not a result. A reviewer needs: number of utterances, number of command classes, per-command confusion matrix, what counted as success, and false-accept separated from false-reject. Those two failure modes have opposite design consequences and collapsing them into one accuracy figure is the single clearest hobbyist tell.
+
+2. **System version pinned.** whisper.cpp commit, model size, quantisation, sample rate, VAD settings, decode parameters. Speech results are worthless without them and are trivially cheap to record.
+
+3. **n=1 named as n=1.** One speaker is an autoethnographic probe, not an evaluation. Framed honestly as a first-person accessibility probe it is respectable and publishable in this community; framed as a performance number it is not. Say which it is in the first sentence of the section.
+
+4. **A baseline.** Run the same command set through a larger model, or through a second speaker, so "the model misheard my accent" is measured rather than asserted. Without a comparison the accent claim rests on the author's word, and the reviewer's job is to notice that.
+
+5. **Ethics and data handling.** Any recorded voice, including the author's own, and certainly any future participant's: consent, storage location, retention period, deletion route, and the Tampere University ethical review path. In a Finnish/EU research group this is not paperwork, it is a competence signal. Its absence is noticed in seconds.
+
+6. **Error recovery treated as a first-class mechanic.** Voice interfaces fail at recovery more than at recognition. What happens on a misrecognition? Is there an undo? Is there confirmation before a destructive or irreversible command? Is there a visible "I heard X" so the player can see the failure rather than infer it from the rover doing the wrong thing? A hobbyist tunes accuracy; a researcher designs for the residual error that will never go away.
+
+7. **Latency, reported.** Time from end-of-speech to in-game action, median and tail. For a rover that has to stop before a cliff, tail latency is the design constraint, and it interacts with the "adjust game speed" guideline directly.
+
+8. **The open-mic problem stated.** Always-on versus push-to-talk, and the gate design, with a measured false-accept rate under background speech. This is also the honest bridge to the privacy section: a gated mic is both a usability and a privacy decision.
+
+9. **Claims scoped to the build.** Replace "each level embodies one guideline" with a three-column table: guideline title exactly as published, tier, and where in the build it is demonstrable. Add rows for "partially implemented" and "deliberately not implemented, because". The "not implemented, because" rows will earn more credit than the implemented ones, because they show the author knows the full set.
+
+10. **Positioning against prior work.** At minimum, cite Koenecke et al. 2020 and EdAcc properly rather than as "published evaluation on the EdAcc and AfriSpeech datasets finds". Named citations with a year. And acknowledge that voice control in games is not new â€” the guidelines themselves cite Skyrim's Kinect voice commands.
+
+11. **Reflexivity.** The author is simultaneously the designer, the instrument, and the excluded user. Say that explicitly and say what it buys and what it costs. That paragraph is the difference between a portfolio piece and a research artefact, and this README is already most of the way there at lines 195-203.
+
+12. **Fix line 171 before anyone reads it.** A reviewer who knows the Game Accessibility Guidelines will spot "the Speech category is empty at Basic level" immediately, and finding one wrong factual claim causes them to discount every other claim in the document. The corrected version is more interesting anyway: the Basic Speech guideline exists, it says do not require speech, and this game complies with it by keeping full keyboard parity â€” which is exactly the design decision the author already made for the right reason.
+
+RECOMMENDATION:
+Replace the "one guideline per level" framing with a three-column honest tally: exact published title, tier, and where it is demonstrable in the build, plus explicit "partial" and "not implemented, and why" rows.
+
+Specific corrections to make:
+1. Delete or rewrite README.md line 171-176. The Speech category is not empty at Basic. Replace with: the Speech category has one Basic guideline, "Ensure that speech input is not required, and included only as a supplementary / alternative input method", and this game complies via full keyboard parity. Then make the genuinely defensible point: only 3 of the 8 Speech guidelines concern voice input at all, the rest are multiplayer chat, so voice-first design is under-covered.
+2. Use exact titles. "Provide subtitles for all important speech", not "subtitles for all speech". "Offer a wide choice of difficulty levels" (Basic) for difficulty; "Include a means of practicing without failure, such as a practice level or sandbox mode" is Intermediate and is the closest thing to "no failure state" â€” there is no guideline by that name.
+3. Split "high contrast / colour-blind safe" into the two Basic Vision guidelines it actually is: "Provide high contrast between text/UI and background" and "Ensure no essential information is conveyed by a fixed colour alone". Do not implement a full-screen colour filter; the guideline page explicitly discourages it.
+4. Drop "settings available before and during play" as a guideline citation. It is not one. Cite "Ensure that all settings are saved/remembered" (Basic, General) and "Ensure subtitles/captions are or can be turned on before any sound is played" (Intermediate, Hearing), and present the always-on-from-first-launch policy as the project's own design position, referencing XAG 120's note about launch-time accessibility prompts.
+5. Reframe the voice-input claim. The guideline says speech must NOT be required. Keyboard parity is not a bonus feature, it is the compliance mechanism. Say that.
+6. Claim the Advanced win the project has actually earned: "Base speech recognition on hitting a volume threshold (eg. 50%) instead of words" â€” Advanced, Speech â€” which the record-any-sound remapping satisfies. That is one Advanced-tier guideline, more credible than six inflated Basic ones.
+7. For the accent problem cite "Base speech recognition on individual words from a small vocabulary" (Intermediate, Speech), which names regional accents in its rationale, plus Koenecke et al. PNAS 2020 and EdAcc for the empirical claim.
+8. For the discard-audio decision, stop looking in the accessibility standards; none of them cover it. Cite GDPR Art. 5(1)(c) and 5(1)(e) plus EDPB Guidelines 02/2021 on virtual voice assistants (delete immediately after the command is executed absent a legal basis; accidental recordings deleted on detection), and the W3C Web Speech API privacy considerations for the consent and visible-recording-indicator points. Add a visible mic-live indicator to the build; it is cheap and it is the one thing the Web Speech API mandates that this game currently has no equivalent of.
+9. Disclose the sound-template storage for non-verbal remapping: where on disk, that it never leaves the machine, and how to delete it. The current "no audio leaving the machine" line is true but reads as "no audio retained", which is not the same claim.
+10. Add an evaluation section with: whisper.cpp commit and model, utterance count, command classes, false-accept vs false-reject split, median and tail latency, and an explicit "n=1, this is a first-person probe not an evaluation" statement.
+
+SOURCES:
+https://gameaccessibilityguidelines.com/full-list/
+https://gameaccessibilityguidelines.com/basic/
+https://gameaccessibilityguidelines.com/intermediate/
+https://gameaccessibilityguidelines.com/ensure-that-speech-input-is-not-required-and-included-only-as-a-supplementary-alternative-input-method/
+https://gameaccessibilityguidelines.com/base-speech-recognition-on-individual-words-from-a-small-vocabulary-eg-yes-no-open-instead-of-long-phrases-or-multi-syllable-words/
+https://gameaccessibilityguidelines.com/base-speech-recognition-on-hitting-a-volume-threshold-eg-50-instead-of-words/
+https://gameaccessibilityguidelines.com/provide-subtitles-for-all-important-speech/
+https://gameaccessibilityguidelines.com/ensure-no-essential-information-is-conveyed-by-sounds-alone/
+https://gameaccessibilityguidelines.com/allow-subtitle-caption-presentation-to-be-customised/
+https://gameaccessibilityguidelines.com/ensure-subtitles-captions-are-or-can-be-turned-on-before-any-sound-is-played/
+https://gameaccessibilityguidelines.com/allow-controls-to-be-remapped-reconfigured/
+https://gameaccessibilityguidelines.com/include-an-option-to-adjust-the-game-speed/
+https://gameaccessibilityguidelines.com/ensure-that-all-key-actions-can-be-carried-out-by-digital-controls-pad-keys-presses-with-more-complex-input-eg-analogue-speech-gesture-not-required-and-included-only-as-supplementary-al/
+https://gameaccessibilityguidelines.com/provide-high-contrast-between-text-ui-and-background/
+https://gameaccessibilityguidelines.com/ensure-no-essential-information-is-conveyed-by-a-fixed-colour-alone/
+https://gameaccessibilityguidelines.com/provide-an-option-to-adjust-contrast/
+https://gameaccessibilityguidelines.com/provide-a-choice-of-text-colour-low-high-contrast-choice-as-a-minimum/
+https://gameaccessibilityguidelines.com/offer-a-wide-choice-of-difficulty-levels/
+https://gameaccessibilityguidelines.com/include-a-means-of-practicing-without-failure-such-as-a-practice-level-or-sandbox-mode/
+https://gameaccessibilityguidelines.com/allow-difficulty-level-to-be-altered-during-gameplay-either-through-settings-or-adaptive-difficulty/
+https://gameaccessibilityguidelines.com/ensure-that-all-settings-are-saved-remembered/
+https://gameaccessibilityguidelines.com/solicit-accessibility-feedback/
+https://gameaccessibilityguidelines.com/include-some-people-with-impairments-amongst-play-testing-participants/
+https://gameaccessibilityguidelines.com/provide-details-of-accessibility-features-in-game/
+https://learn.microsoft.com/en-us/gaming/accessibility/guidelines
+https://learn.microsoft.com/en-us/gaming/accessibility/xag-version-history
+https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/107
+https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/108
+https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/119
+https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/120
+https://www.w3.org/TR/wcag2ict-22/
+https://webaudio.github.io/web-speech-api/
+https://accessible.games/accessible-player-experiences/
+https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-022021-virtual-voice-assistants_en
+https://eur-lex.europa.eu/eli/reg/2016/679/oj
+https://www.pnas.org/doi/10.1073/pnas.1915768117
+https://groups.inf.ed.ac.uk/edacc/edacc.pdf

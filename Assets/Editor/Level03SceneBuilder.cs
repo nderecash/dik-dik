@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Dikdik.Commands;
 using Dikdik.Game;
@@ -203,6 +204,14 @@ public static class Level03SceneBuilder
         var exitSerialized = new SerializedObject(exitZone);
         SetRef(exitSerialized, "director", director);
         exitSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        // The relay line, straight down the corridor to the exit. This is the night level,
+        // so the cable's bright core is doing real work here: it is the only thing in the
+        // scene that can be followed without the high contrast setting turned on.
+        var cableCorners = new List<Vector3> { Vector3.zero, new Vector3(0f, 0f, length - 4f) };
+        var cable = CableBuilder.Build(cableCorners, 4, false, controller, roverLight, audio);
+        var mission = CableBuilder.AddMission(cable, controller, roverLight, director);
+        CableBuilder.AddHud(mission, controller, director);
 
         // ------------------------------------------------------------------
         // Night. This is the whole level in three lines.

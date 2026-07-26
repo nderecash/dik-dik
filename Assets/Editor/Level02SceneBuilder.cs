@@ -188,6 +188,11 @@ public static class Level02SceneBuilder
         SetRef(exitSer, "director", director);
         exitSer.ApplyModifiedPropertiesWithoutUndo();
 
+        // The relay line, on the same corners as the corridor.
+        var cable = CableBuilder.Build(corners, 3, false, controller, roverLight, audio);
+        var mission = CableBuilder.AddMission(cable, controller, roverLight, director);
+        CableBuilder.AddHud(mission, controller, director);
+
         // Camera and environment.
         var cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Dikdik.Commands;
 using Dikdik.Game;
@@ -162,6 +163,20 @@ public static class Level05SceneBuilder
         for (var i = 0; i < marks.Length; i++)
             marksProp.GetArrayElementAtIndex(i).objectReferenceValue = marks[i];
         objectiveSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        // The relay line, with only two checkpoints and neither of them on a stop pad.
+        //
+        // This level is about not being able to stop where you meant to. A checkpoint that
+        // stops the rover for you, sitting on a pad, would hand the player the exact thing
+        // the level is asking them to earn. So the scans bracket the run instead: one
+        // before the grade starts, one past the last pad, and the pads stay the objective.
+        // Pads sit at 14, 30 and 46. These sit at 6 and 52, well clear of all three.
+        var cableCorners = new List<Vector3> { Vector3.zero, new Vector3(0f, 0f, RunEnd) };
+        var cable = CableBuilder.Build(cableCorners, 2, false, controller, roverLight, audio,
+                                       new[] { 6f, RunEnd });
+        var mission = CableBuilder.AddMission(cable, controller, roverLight, director,
+                                              completeOnScan: false);
+        CableBuilder.AddHud(mission, controller, director);
 
         // ------------------------------------------------------------------
         // Camera, pitched a touch steeper to read as looking down a grade
