@@ -217,6 +217,11 @@ public static class Level03SceneBuilder
         CableBuilder.AddRoverCharacter(rover, controller);
         CableBuilder.AddWeather();
 
+        // The second and last blockage, at 0.65 along, between the third and fourth
+        // checkpoints. Two in the whole game: the puzzle voice group is four lines, so two
+        // occurrences is exactly two clean cycles and nobody hears a line out of order.
+        CableBuilder.AddPuzzle(cable, controller, roverLight, 0.65f);
+
         // ------------------------------------------------------------------
         // Night. This is the whole level in three lines.
         // ------------------------------------------------------------------

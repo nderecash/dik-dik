@@ -23,6 +23,21 @@ namespace Dikdik.Commands
         Wake,
         Repeat,     // say your last message again
         Restart,    // run the simulation again from the top
-        Help
+        Help,
+
+        // Delight.
+        //
+        // Recognised, never required, never hinted at, and never part of any objective.
+        // They exist because a game that tells you it will listen to anything invites you
+        // to test that, and the worst possible answer to someone trying is silence. Every
+        // one of these gets a real reply from Control.
+        //
+        // Only Spin does anything physical. The rest are answered in words, including
+        // Jump, which the rover cannot do and says so.
+        Jump,
+        Spin,
+        Dance,
+        Greet,
+        Who
     }
 }

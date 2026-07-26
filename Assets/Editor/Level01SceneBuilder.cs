@@ -328,6 +328,12 @@ public static class Level01SceneBuilder
         CableBuilder.AddRoverCharacter(rover, controller);
         CableBuilder.AddWeather();
 
+        // The first conversation. Placed at 0.55 along, which falls between the second and
+        // third checkpoints, so it never lands on one. Here rather than later on purpose:
+        // the rover having an opinion and asking for yours works better as something the
+        // game does early than as a twist in sector five.
+        CableBuilder.AddPuzzle(cable, controller, roverLight, 0.55f);
+
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);

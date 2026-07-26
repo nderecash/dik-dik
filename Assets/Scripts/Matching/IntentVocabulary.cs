@@ -90,7 +90,42 @@ namespace Dikdik.Matching
 
                 [IntentId.Wake] = new[]
                 {
-                    "wake them up", "wake up", "wake them", "hey", "hello", "wake"
+                    "wake them up", "wake up", "wake them", "wake"
+                },
+
+                // ----------------------------------------------------------
+                // Delight. See IntentId for why these exist.
+                //
+                // "hello" and "hey" used to belong to Wake, back when the ending woke a
+                // field of dormant rovers. That ending is gone and greeting the rover is
+                // now just greeting the rover, which is what those words meant anyway.
+                // ----------------------------------------------------------
+                [IntentId.Jump] = new[]
+                {
+                    "can you jump", "do a jump", "jump up", "hop", "jump", "leap"
+                },
+
+                [IntentId.Spin] = new[]
+                {
+                    "spin around", "turn around in a circle", "do a spin",
+                    "spin", "twirl", "pirouette"
+                },
+
+                [IntentId.Dance] = new[]
+                {
+                    "do a dance", "have a dance", "dance for me", "dance", "boogie", "wiggle"
+                },
+
+                [IntentId.Greet] = new[]
+                {
+                    "how are you", "good morning", "nice to meet you",
+                    "hello there", "hello", "hi there", "hey", "hi"
+                },
+
+                [IntentId.Who] = new[]
+                {
+                    "who are you", "what is your name", "whats your name",
+                    "who am i talking to", "who is this"
                 },
 
                 // Repeat asks the rover to re-send its last message.

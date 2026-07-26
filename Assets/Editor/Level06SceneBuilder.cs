@@ -37,10 +37,10 @@ public static class Level06SceneBuilder
         var wallMaterial = Environment.LitMaterial("LunarRock", new Color(0.34f, 0.32f, 0.30f));
         var groundMaterial = Environment.LitMaterial("LunarGround", new Color(0.42f, 0.40f, 0.37f));
         var shellMaterial = MakeMaterial("RoverShell", "Unlit/Color", new Color(0.85f, 0.88f, 1f));
-        var dormantMaterial = MakeMaterial("DormantShell", "Unlit/Color", new Color(0.02f, 0.02f, 0.03f));
 
-        // Ground stretches out over the plain beyond the rim, so the dormant field sits
-        // on it in view.
+        // Ground still stretches past the rim. The dormant field that used to sit on it
+        // is gone, but the open plain beyond the last wall is what makes cresting the rim
+        // feel like arriving somewhere, so the ground stays.
         var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
         ground.name = "Ground";
         ground.transform.position = new Vector3(0f, -0.5f, RimZ + 20f);
@@ -76,46 +76,10 @@ public static class Level06SceneBuilder
         introSerialized.FindProperty("clipName").stringValue = "sup_sector_06";
         introSerialized.ApplyModifiedPropertiesWithoutUndo();
 
-        // The dormant rovers on the plain, a loose grid beyond the rim.
-        var field = new GameObject("Dormant Field");
-        var dormant = new List<DormantRover>();
-        var rng = new System.Random(6);
-
-        for (var row = 0; row < 3; row++)
-        {
-            for (var col = 0; col < 4; col++)
-            {
-                var x = (col - 1.5f) * 9f + (float)(rng.NextDouble() * 3 - 1.5);
-                var z = RimZ + 12f + row * 12f + (float)(rng.NextDouble() * 4 - 2);
-                var yaw = (float)(rng.NextDouble() * 360);
-
-                var d = BuildDormant(field.transform, new Vector3(x, 0.4f, z), yaw,
-                                     dormantMaterial, out var comp);
-                dormant.Add(comp);
-            }
-        }
-
-        // Ending trigger at the rim.
-        var ending = new GameObject("Ending");
-        ending.transform.position = new Vector3(0f, WallHeight * 0.5f, RimZ - 2f);
-        var endTrigger = ending.AddComponent<BoxCollider>();
-        endTrigger.isTrigger = true;
-        endTrigger.size = new Vector3(HalfWidth * 2f, WallHeight + 2f, 3f);
-
-        var broadcastSource = ending.AddComponent<AudioSource>();
-        broadcastSource.playOnAwake = false;
-        broadcastSource.spatialBlend = 0f;
-        broadcastSource.volume = 1f;
-
-        var sequence = ending.AddComponent<EndingSequence>();
-        var sequenceSerialized = new SerializedObject(sequence);
-        SetRef(sequenceSerialized, "director", director);
-        SetRef(sequenceSerialized, "broadcastSource", broadcastSource);
-        var dormantProp = sequenceSerialized.FindProperty("dormant");
-        dormantProp.arraySize = dormant.Count;
-        for (var i = 0; i < dormant.Count; i++)
-            dormantProp.GetArrayElementAtIndex(i).objectReferenceValue = dormant[i];
-        sequenceSerialized.ApplyModifiedPropertiesWithoutUndo();
+        // The field of dormant rovers that used to sit beyond the rim is gone, with the
+        // ending it belonged to. That version broadcast the player's own recorded voice
+        // to wake them, and playing it felt like surveillance rather than triumph. What
+        // replaces it is the repair, below.
 
         // The last stretch of relay line, and the break in it.
         //
@@ -127,12 +91,33 @@ public static class Level06SceneBuilder
         var cableCorners = new List<Vector3> { Vector3.zero, new Vector3(0f, 0f, RimZ - 2f) };
         var cable = CableBuilder.Build(cableCorners, 4, true, controller, roverLight,
                                        rover.GetComponent<AudioSource>());
-        var mission = CableBuilder.AddMission(cable, controller, roverLight, director);
+        // completeOnScan is off here alone. Finding the fault is not finishing the game;
+        // patching it is, and RepairFinale owns that.
+        var mission = CableBuilder.AddMission(cable, controller, roverLight, director,
+                                              completeOnScan: false);
         CableBuilder.AddHud(mission, controller, director);
 
         // Tire sound, brake tick, turning wheels, and the attention reflex.
         CableBuilder.AddRoverCharacter(rover, controller);
         CableBuilder.AddWeather();
+
+        // The ending.
+        var finaleObject = new GameObject("Repair Finale");
+        var finaleSource = finaleObject.AddComponent<AudioSource>();
+        finaleSource.playOnAwake = false;
+        finaleSource.spatialBlend = 0f;
+
+        var finale = finaleObject.AddComponent<RepairFinale>();
+        var finaleSerialized = new SerializedObject(finale);
+        SetRef(finaleSerialized, "progress", mission);
+        SetRef(finaleSerialized, "cable", cable.Visual);
+        SetRef(finaleSerialized, "rover", controller);
+        SetRef(finaleSerialized, "roverLight", roverLight);
+        SetRef(finaleSerialized, "director", director);
+        SetRef(finaleSerialized, "source", finaleSource);
+        SetRef(finaleSerialized, "powerClip",
+               AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/scan_clear.wav"));
+        finaleSerialized.ApplyModifiedPropertiesWithoutUndo();
 
         // Camera. Sits higher and looks well ahead, so cresting the rim reveals the plain.
         var cameraObject = new GameObject("Main Camera");
@@ -180,7 +165,7 @@ public static class Level06SceneBuilder
         AssetDatabase.Refresh();
 
         Debug.Log($"[Level06SceneBuilder] Wrote {ScenePath}, rim at {RimZ:0}, " +
-                  $"{dormant.Count} dormant rovers");
+                  "4 checkpoints with the fault on the last");
     }
 
     private static GameObject BuildRover(string name, Material bodyMaterial, Material shellMaterial,
@@ -244,45 +229,6 @@ public static class Level06SceneBuilder
         return rover;
     }
 
-    private static GameObject BuildDormant(Transform parent, Vector3 position, float yaw,
-                                           Material shellMaterial, out DormantRover component)
-    {
-        var rover = new GameObject("Dormant");
-        rover.transform.SetParent(parent);
-        rover.transform.position = position;
-        rover.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-
-        // The dormant rover's body is a dark Kenney rover, so the plain is dotted with
-        // the same machine as Salty, unlit until the broadcast wakes each one.
-        var dark = Environment.LitMaterial("DormantBody", new Color(0.06f, 0.06f, 0.08f));
-        Environment.AttachRoverModel(rover.transform, dark);
-
-        var shell = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        shell.transform.SetParent(rover.transform, false);
-        shell.transform.localPosition = new Vector3(0f, 0.34f, 0.1f);
-        shell.transform.localScale = new Vector3(0.85f, 0.12f, 0.9f);
-        var shellRenderer = shell.GetComponent<Renderer>();
-        // Own material instance so it can glow independently.
-        shellRenderer.sharedMaterial = new Material(shellMaterial);
-        Object.DestroyImmediate(shell.GetComponent<Collider>());
-
-        var lampObject = new GameObject("Lamp");
-        lampObject.transform.SetParent(rover.transform, false);
-        lampObject.transform.localPosition = new Vector3(0f, 0.5f, 0f);
-        var lamp = lampObject.AddComponent<Light>();
-        lamp.type = LightType.Point;
-        lamp.range = 8f;
-        lamp.intensity = 0f;
-        lamp.color = new Color(0.75f, 0.85f, 1f);
-
-        component = rover.AddComponent<DormantRover>();
-        var serialized = new SerializedObject(component);
-        SetRef(serialized, "shell", shellRenderer);
-        SetRef(serialized, "lamp", lamp);
-        serialized.ApplyModifiedPropertiesWithoutUndo();
-
-        return rover;
-    }
 
     private static Material MakeMaterial(string name, string shader, Color colour)
     {

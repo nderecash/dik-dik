@@ -123,3 +123,5 @@ Builds/
 
 /shot_lit*.png
 /shot_kenney*.png
+tools/matcher-tests/bin/
+tools/matcher-tests/obj/

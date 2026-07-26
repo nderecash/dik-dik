@@ -23,7 +23,6 @@ namespace Dikdik.Game
 
         [Header("Persistent systems")]
         [SerializeField] private CommandBus bus;
-        [SerializeField] private VoiceJournal journal;
         [SerializeField] private CommsDisplay comms;
 
         [Header("First scene")]
@@ -33,7 +32,6 @@ namespace Dikdik.Game
         [SerializeField] private bool loadFirstScene = true;
 
         public CommandBus Bus => bus;
-        public VoiceJournal Journal => journal;
         public CommsDisplay Comms => comms;
 
         private void Awake()
@@ -101,9 +99,8 @@ namespace Dikdik.Game
             if (voice == null)
                 return;
 
-            if (journal != null)
-                voice.UtteranceCaptured += journal.Capture;
-
+            // Nothing subscribes to the audio, because nothing keeps it. See the note in
+            // VoiceCommandProducer where the journal used to be wired.
             if (comms != null)
                 voice.VoiceDetectedChanged += comms.SetListening;
 

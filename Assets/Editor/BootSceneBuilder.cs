@@ -36,7 +36,6 @@ public static class BootSceneBuilder
         var bootstrap = root.AddComponent<Bootstrap>();
 
         var bus = BuildBus(root);
-        var journal = root.AddComponent<VoiceJournal>();
         BuildVoice(root);
         root.AddComponent<KeyboardCommandProducer>();
 
@@ -88,7 +87,6 @@ public static class BootSceneBuilder
 
         var bootSerialized = new SerializedObject(bootstrap);
         SetRef(bootSerialized, "bus", bus);
-        SetRef(bootSerialized, "journal", journal);
         SetRef(bootSerialized, "comms", comms);
         bootSerialized.FindProperty("firstScene").stringValue = "Level01";
         bootSerialized.FindProperty("loadFirstScene").boolValue = true;
@@ -110,9 +108,11 @@ public static class BootSceneBuilder
 
         var serialized = new SerializedObject(bus);
 
-        // 2.6 seconds. Round-trip light time to the Moon is about 2.56s and Apollo 12
-        // measured 2.712s on the day. Applied to voice AND keyboard, measured from when
-        // the player finished, so neither route reaches the rover first.
+        // 2.6 seconds. The number came from round-trip light time to the Moon, about
+        // 2.56s, with Apollo 12 measuring 2.712s on the day. The story moved to an
+        // unnamed planet and the number stayed, because its real job was never the
+        // astronomy: it is applied to voice AND keyboard, measured from when the player
+        // finished giving the command, so neither route reaches the rover first.
         serialized.FindProperty("transportDelay").floatValue = 2.6f;
         serialized.ApplyModifiedPropertiesWithoutUndo();
 
@@ -216,7 +216,7 @@ public static class BootSceneBuilder
         statusRect.offsetMax = new Vector2(-28f, 70f);
 
         // Signal bar. Fills left to right as the command crosses the gap. Not a spinner:
-        // a spinner claims the software is busy, this claims the Moon is far away, and
+        // a spinner claims the software is busy, this claims the rover is far away, and
         // only the second is true.
         var bar = NewUiObject("Signal Bar", panel.transform);
         var barRect = bar.GetComponent<RectTransform>();

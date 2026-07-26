@@ -22,8 +22,8 @@ namespace Dikdik.Game
     /// <item><b>Acted on.</b> The rover moved.</item>
     /// </list>
     ///
-    /// <para>A spinner would say the software is struggling. A travelling signal says
-    /// the Moon is a long way away. The wait is identical and only one of them is true.</para>
+    /// <para>A spinner would say the software is struggling. A travelling signal says the
+    /// rover is a long way away. The wait is identical and only one of them is true.</para>
     /// </summary>
     public class CommsDisplay : MonoBehaviour
     {

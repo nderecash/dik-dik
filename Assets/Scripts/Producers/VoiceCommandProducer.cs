@@ -51,16 +51,18 @@ namespace Dikdik.Producers
         /// <summary>Raised when the player starts and stops speaking. Drives the listening indicator.</summary>
         public event Action<bool> VoiceDetectedChanged;
 
-        /// <summary>
-        /// Raised with the whole utterance: the audio, not just what we made of it.
-        ///
-        /// Every other voice interface converts speech to a command and drops the sound
-        /// on the floor. <see cref="Dikdik.Game.VoiceJournal"/> listens here and keeps it,
-        /// because the ending of this game is the player's own recorded voice going out
-        /// on the open loop to wake the other rovers. That only works if we never threw
-        /// it away.
-        /// </summary>
-        public event Action<Utterance> UtteranceCaptured;
+        // There used to be an UtteranceCaptured event here, carrying the raw microphone
+        // samples, and a VoiceJournal that kept every one of them for the whole session.
+        // The ending played them back: your own voice, every command, unedited.
+        //
+        // It was built, it worked, and playing it felt like surveillance. The microphone
+        // does not record commands, it records a room, and hearing that room played back
+        // is not the same experience as hearing yourself give instructions.
+        //
+        // So the retention is gone, not just the ending. Audio is transcribed and dropped
+        // inside OnRecordStop and never leaves this method. That is a stronger claim than
+        // "nothing leaves your machine", and it came from playing the thing rather than
+        // from a policy.
 
         public bool IsAvailable =>
             whisper != null &&
@@ -200,20 +202,8 @@ namespace Dikdik.Producers
                 // for whatever is left rather than starting the clock again.
                 var intent = FuzzyIntentMatcher.Match(text, CommandSource.Voice).At(spokenAt);
 
-                // Keep the sound before anything reacts to the meaning. Unrecognised
-                // utterances are kept too: the player still spoke, and a broadcast made
-                // only of the sentences a machine happened to understand would be a
-                // strange thing for this game of all games to assemble.
-                UtteranceCaptured?.Invoke(new Utterance
-                {
-                    Samples = chunk.Data,
-                    Frequency = chunk.Frequency,
-                    Channels = chunk.Channels,
-                    Transcript = text,
-                    Intent = intent.Id,
-                    CapturedAt = spokenAt
-                });
-
+                // chunk.Data goes out of scope here and is never copied, stored or
+                // written to disk. The transcript survives; the audio does not.
                 CommandProduced?.Invoke(intent);
             }
             catch (Exception e)

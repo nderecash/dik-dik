@@ -370,6 +370,13 @@ public static class CableBuilder
         SetRef(attentionSerialized, "rover", controller);
         attentionSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        // Jump, spin, dance, hello, who are you. Every level, because an easter egg that
+        // works in some levels and not others is a bug with a nicer name.
+        var delight = rover.AddComponent<DelightResponses>();
+        var delightSerialized = new SerializedObject(delight);
+        SetRef(delightSerialized, "rover", controller);
+        delightSerialized.ApplyModifiedPropertiesWithoutUndo();
+
         // Body motion, plus any wheels the level happens to have kitbashed on. The Kenney
         // rover is a single mesh with its wheels moulded in, so the list is normally empty
         // and the bob is what sells the driving. See RoverWheels.
@@ -397,6 +404,54 @@ public static class CableBuilder
         if (body == null)
             Debug.LogWarning($"[CableBuilder] {rover.name} has no child named 'Rover Model'. " +
                              "The driving animation will do nothing.");
+    }
+
+    /// <summary>
+    /// A blockage on the cable with a diagnostic conversation attached.
+    ///
+    /// <para>Placed at a fraction along the run rather than a fixed distance, so it lands
+    /// somewhere sensible whatever length the level happens to be.</para>
+    /// </summary>
+    public static void AddPuzzle(Built built, RoverController rover, RoverLight roverLight,
+                                 float fractionAlong)
+    {
+        if (built.Path == null)
+            return;
+
+        built.Path.Build();
+        var distance = built.Path.TotalLength * fractionAlong;
+        var position = built.Path.PointAtDistance(distance);
+        var direction = built.Path.DirectionAtDistance(distance);
+
+        var root = new GameObject("Blockage");
+        root.transform.position = position;
+        root.transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+
+        // The rock is solid, so a player who ignores the conversation and simply drives at
+        // it is stopped by it, rather than passing through the thing being discussed.
+        var rock = Environment.PlaceModel("rock_largeA", position, 35f, 5.5f, solid: true);
+        if (rock != null)
+        {
+            rock.name = "Rock";
+            rock.transform.SetParent(root.transform, true);
+        }
+
+        // Trigger sits on the approach side, so the conversation starts before the rover
+        // is nose to nose with the rock.
+        var trigger = root.AddComponent<BoxCollider>();
+        trigger.isTrigger = true;
+        trigger.size = new Vector3(9f, 4f, 8f);
+        trigger.center = new Vector3(0f, 1.5f, -5f);
+
+        var puzzle = root.AddComponent<DiagnosticPuzzle>();
+        var puzzleSerialized = new SerializedObject(puzzle);
+        SetRef(puzzleSerialized, "rover", rover);
+        SetRef(puzzleSerialized, "roverLight", roverLight);
+        SetRef(puzzleSerialized, "blockage", rock != null ? rock.transform : null);
+        SetRef(puzzleSerialized, "source", rover.GetComponent<AudioSource>());
+        SetRef(puzzleSerialized, "scanTone",
+               AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/scan_sweep.wav"));
+        puzzleSerialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
     /// <summary>

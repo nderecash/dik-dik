@@ -96,6 +96,23 @@ namespace Dikdik.Game.Cable
             }
         }
 
+        /// <summary>
+        /// Light the whole line at once. Used exactly once, when the power comes back:
+        /// twenty scans across six sectors built this picture up a section at a time, and
+        /// this pays all of it off in one moment.
+        /// </summary>
+        public void MarkAllScanned()
+        {
+            if (sections == null)
+                return;
+
+            for (var i = 0; i < sections.Length; i++)
+            {
+                _scanned[i] = true;
+                Paint(i, scannedColour);
+            }
+        }
+
         /// <summary>Put every section back to unscanned for a fresh rehearsal run.</summary>
         public void ResetForSimulation()
         {

@@ -268,6 +268,19 @@ namespace Dikdik.Game
             IsRemoteControlled = true;
         }
 
+        /// <summary>
+        /// Adopt whatever direction the transform is currently facing as the intended one.
+        ///
+        /// For anything that moves the rover's rotation directly, like the spin easter egg,
+        /// and then wants the controller to carry on from there rather than snapping back
+        /// to a heading it was aiming at before.
+        /// </summary>
+        public void SnapHeadingToTransform()
+        {
+            _targetYaw = transform.eulerAngles.y;
+            _resumeAfterTurn = false;
+        }
+
         /// <summary>Hand the wheel back, pointing wherever the recovery left it.</summary>
         public void EndRemoteControl()
         {

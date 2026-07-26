@@ -52,7 +52,11 @@ namespace Dikdik.Commands
         public event Action<Intent> CommandAccepted;
 
         [Tooltip("Seconds from the player finishing input to the rover acting. " +
-                 "2.6 is round-trip light time to the Moon.")]
+                 "2.6 seconds. It began as round-trip light time to the Moon, which is " +
+                 "about 2.56s. The story is no longer set on the Moon and the number " +
+                 "stayed, because what it is really doing is holding voice and keyboard " +
+                 "level with each other: speech spends most of that budget inside whisper, " +
+                 "so a key press has to wait the same total or it silently wins every race.")]
         [SerializeField] private float transportDelay = 2.6f;
 
         public float TransportDelay
@@ -72,7 +76,7 @@ namespace Dikdik.Commands
         /// <summary>
         /// How far along the earliest in-flight command is, 0 to 1. Returns 1 when
         /// nothing is in transit. The signal indicator reads this instead of a spinner:
-        /// a spinner says the software is struggling, a travelling signal says the Moon
+        /// a spinner says the software is struggling, a travelling signal says the rover
         /// is a long way away, and only one of those is true.
         /// </summary>
         public float TransitProgress
@@ -156,7 +160,14 @@ namespace Dikdik.Commands
         /// </summary>
         private static readonly IntentId[] AlwaysAllowed =
         {
-            IntentId.Help, IntentId.Repeat, IntentId.Restart
+            IntentId.Help, IntentId.Repeat, IntentId.Restart,
+
+            // The delight commands, everywhere, always. An easter egg that works in two
+            // levels out of six is not an easter egg, it is a bug that some players will
+            // find and reasonably report. And the reply to "can you jump" being "I did not
+            // understand that" in exactly the levels where nobody thought to allow it is
+            // the single worst thing this game could say.
+            IntentId.Jump, IntentId.Spin, IntentId.Dance, IntentId.Greet, IntentId.Who
         };
 
         /// <summary>
