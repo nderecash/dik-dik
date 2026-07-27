@@ -172,6 +172,10 @@ public static class Level04SceneBuilder
         allowed.GetArrayElementAtIndex(5).enumValueIndex = (int)IntentId.Open;
         directorSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        // Put back any props moved by hand and saved. Does nothing until a layout
+        // exists for this level, so procedural scatter stays the default.
+        PropLayout.TryApply(4);
+
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);

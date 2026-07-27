@@ -183,6 +183,30 @@ public static class Environment
     }
 
     /// <summary>Place one Kenney model in the world, keeping its own colours by default.</summary>
+    private static GameObject _dressing;
+
+    /// <summary>
+    /// The parent every Kenney prop goes under: rocks, boulders, hangars, dishes.
+    ///
+    /// <para>One root so the whole set can be saved to a text file and put back after a
+    /// regeneration. Scene generation destroys everything and starts over, which is what
+    /// makes the scenes reviewable in a diff, and also what would otherwise throw away an
+    /// afternoon of moving rocks around by hand. See PropLayout.</para>
+    ///
+    /// <para>The cached reference goes null on its own when a new scene is created, so
+    /// there is nothing to reset between levels.</para>
+    /// </summary>
+    public static Transform Dressing
+    {
+        get
+        {
+            if (_dressing == null)
+                _dressing = new GameObject("Dressing");
+
+            return _dressing.transform;
+        }
+    }
+
     public static GameObject PlaceModel(string modelName, Vector3 position, float yaw, float scale,
                                         Material overrideMat = null, bool solid = false)
     {
@@ -194,6 +218,11 @@ public static class Environment
         // the requested spot and face it.
         go.transform.position += new Vector3(position.x, position.y, position.z);
         go.transform.rotation = Quaternion.Euler(0f, yaw, 0f) * go.transform.rotation;
+
+        // Everything placed by name goes under one root, so it can be captured and
+        // restored as a set. The name is left alone on purpose: it is the model name, and
+        // that is what PropLayout reads to rebuild this object later.
+        go.transform.SetParent(Dressing, true);
         return go;
     }
 
@@ -204,7 +233,6 @@ public static class Environment
     public static void ScatterKenneyRocks(Vector3 center, float halfX, float halfZ,
                                           float clearLane, int count, int seed)
     {
-        var parent = new GameObject("Rocks");
         var rng = new System.Random(seed);
         var kinds = new[] { "rock", "rock_largeA", "rock_largeB", "rocks_smallA", "rocks_smallB", "meteor" };
 
@@ -221,10 +249,10 @@ public static class Environment
             // Solid. A rock the rover drives straight through is not scenery, it is a
             // hole in the fiction, and the whole premise is a machine that reacts to
             // what is actually in front of it.
-            var rock = PlaceModel(kind, center + new Vector3(x, 0f, z),
-                                  (float)(rng.NextDouble() * 360), scale, solid: true);
-            if (rock != null)
-                rock.transform.SetParent(parent.transform, true);
+            // PlaceModel parents these under Dressing itself, so they are captured and
+            // restored along with every other prop.
+            PlaceModel(kind, center + new Vector3(x, 0f, z),
+                       (float)(rng.NextDouble() * 360), scale, solid: true);
         }
     }
 

@@ -231,6 +231,10 @@ public static class Level02SceneBuilder
         allowed.GetArrayElementAtIndex(4).enumValueIndex = (int)IntentId.Open;
         directorSer.ApplyModifiedPropertiesWithoutUndo();
 
+        // Put back any props moved by hand and saved. Does nothing until a layout
+        // exists for this level, so procedural scatter stays the default.
+        PropLayout.TryApply(2);
+
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);

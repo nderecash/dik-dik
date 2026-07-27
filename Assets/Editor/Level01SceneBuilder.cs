@@ -347,6 +347,10 @@ public static class Level01SceneBuilder
         // game does early than as a twist in sector five.
         CableBuilder.AddPuzzle(cable, controller, roverLight, 0.55f);
 
+        // Put back any props moved by hand and saved. Does nothing until a layout
+        // exists for this level, so procedural scatter stays the default.
+        PropLayout.TryApply(1);
+
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
