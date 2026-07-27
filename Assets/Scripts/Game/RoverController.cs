@@ -300,19 +300,32 @@ namespace Dikdik.Game
                 || id == IntentId.Left || id == IntentId.Right;
         }
 
+        [Tooltip("Off. A turn given while stopped turns and stays stopped, and going again " +
+                 "takes a separate word. On, a turn at a junction also sets off. See Turn().")]
+        [SerializeField] private bool driveOnAfterTurn = false;
+
         private void Turn(float degrees)
         {
             _targetYaw += degrees;
 
-            // Turning while stopped at a junction means go that way, not pivot on the
-            // spot and wait for a second instruction. Making someone say "left" and
-            // then "go" at every corner would be the interface asking to be obeyed
-            // twice for one decision.
-            if (IsWaitingAtJunction)
-            {
-                _resumeAfterTurn = true;
-                IsWaitingAtJunction = false;
-            }
+            if (!driveOnAfterTurn || !IsWaitingAtJunction)
+                return;
+
+            // The old behaviour, now off by default.
+            //
+            // The argument for it was that making somebody say "left" and then "go" at
+            // every corner is the interface asking to be obeyed twice for one decision.
+            // That reasoning was fine and the playtest still killed it, for a reason no
+            // amount of reasoning would have found: a turn that also sets off is
+            // unrecoverable under a 2.6 second delay. You turn to escape a wall, the rover
+            // drives before you have judged the angle, and by the time "stop" arrives you
+            // are in whatever you were turning away from.
+            //
+            // Separated, a turn is a free action. Line the rover up, look at it, then go.
+            // It costs a second word per corner and buys back the ability to be careful,
+            // which is the thing latency takes away and the thing this game is about.
+            _resumeAfterTurn = true;
+            IsWaitingAtJunction = false;
         }
 
         private void Update()
@@ -447,11 +460,46 @@ namespace Dikdik.Game
             MovingChanged?.Invoke(moving);
         }
 
-        /// <summary>Put the rover back where a level started. Used by level reset.</summary>
+        /// <summary>
+        /// Put the rover back where the level started, listening.
+        ///
+        /// <para><b>Every hold is released here, unconditionally.</b> That is the whole
+        /// point of this method and it was missing, which cost a playtest.</para>
+        ///
+        /// <para>What happened: a safety cutout fired while a checkpoint scan was running.
+        /// The scan had called BeginScanHold, which makes the rover keep commands instead
+        /// of obeying them. The reset stopped the scan coroutine, so the matching
+        /// EndScanHold never ran, and the rover sat there silently swallowing every
+        /// instruction for the rest of the level. Nothing on screen said why, because from
+        /// the rover's point of view nothing was wrong: it was waiting for a scan that no
+        /// longer existed.</para>
+        ///
+        /// <para>Clearing the flags at each call site would fix that one path and leave the
+        /// next one to be discovered the same way. A reset means "the rover is as it was at
+        /// the start of the level", and at the start of the level it listens. So this is
+        /// the one place that has to be right, and anything that grabs the wheel can be
+        /// interrupted without having to clean up after itself.</para>
+        /// </summary>
         public void ResetTo(Vector3 position, float yaw)
         {
             _direction = 0;
             _currentSpeed = 0f;
+
+            IsScanHeld = false;
+            IsRemoteControlled = false;
+            IsWaitingAtJunction = false;
+            IsAttentive = false;
+            _resumeAfterTurn = false;
+
+            if (HeldCommand.HasValue)
+            {
+                // Dropped rather than obeyed. It was given during a run that has just been
+                // discarded, and delivering it now would have the rover acting on a
+                // sentence from a timeline the player already abandoned.
+                HeldCommand = null;
+                HeldCommandChanged?.Invoke(null);
+            }
+
             transform.position = position;
             transform.rotation = Quaternion.Euler(0f, yaw, 0f);
             _targetYaw = yaw;

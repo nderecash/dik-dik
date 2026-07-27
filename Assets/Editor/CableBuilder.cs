@@ -407,6 +407,79 @@ public static class CableBuilder
     }
 
     /// <summary>
+    /// Fail loudly if any hazard trigger reaches the cable.
+    ///
+    /// <para>This exists because it happened. Level 3's crevasses were placed at a fixed
+    /// offset chosen before the cable existed, and when the cable arrived it ran within
+    /// twenty centimetres of them. Driving the line, which is the entire instruction the
+    /// game gives you, put half the rover inside a reset trigger.</para>
+    ///
+    /// <para>Nothing caught it. It compiled, it rendered, the screenshots looked correct,
+    /// and the scene YAML was exactly what the builder asked for. It took a person driving
+    /// down the level to find it, which is the most expensive way to find anything.</para>
+    ///
+    /// <para>So the invariant gets asserted where it can be checked for free. A cable that
+    /// crosses a hazard is not a tuning problem to be noticed later, it is a level that
+    /// cannot be played as instructed, and the build should say so.</para>
+    /// </summary>
+    public static void AssertCableIsClear(Built built, float roverHalfWidth = 0.75f)
+    {
+        if (built.Path == null)
+            return;
+
+        built.Path.Build();
+
+        var hazards = Object.FindObjectsByType<Hazard>(FindObjectsInactive.Include,
+                                                       FindObjectsSortMode.None);
+        if (hazards.Length == 0)
+            return;
+
+        // Walk the cable in short steps and check each point against every hazard's
+        // bounds, grown by the rover's half width. Cheap: a few hundred checks at build
+        // time, once, against a handful of hazards.
+        const float step = 0.5f;
+        var worst = 0f;
+        var offender = string.Empty;
+
+        for (var d = 0f; d <= built.Path.TotalLength; d += step)
+        {
+            var point = built.Path.PointAtDistance(d);
+
+            foreach (var hazard in hazards)
+            {
+                var collider = hazard.GetComponent<Collider>();
+                if (collider == null)
+                    continue;
+
+                var bounds = collider.bounds;
+                bounds.Expand(new Vector3(roverHalfWidth * 2f, 0f, roverHalfWidth * 2f));
+
+                // Height is ignored on purpose. Hazards here are flat pits and the rover
+                // never leaves the ground plane, so a y test would pass everything.
+                var flat = new Vector3(point.x, bounds.center.y, point.z);
+                if (!bounds.Contains(flat))
+                    continue;
+
+                var intrusion = Mathf.Min(
+                    bounds.max.x - flat.x, flat.x - bounds.min.x,
+                    Mathf.Min(bounds.max.z - flat.z, flat.z - bounds.min.z));
+
+                if (intrusion <= worst)
+                    continue;
+
+                worst = intrusion;
+                offender = hazard.name;
+            }
+        }
+
+        if (worst > 0f)
+            Debug.LogError(
+                $"[CableBuilder] The cable runs through hazard '{offender}', overlapping by " +
+                $"{worst:0.00} units once the rover's width is counted. Following the line " +
+                "will trigger a reset. Move the hazard clear of the route, or move the route.");
+    }
+
+    /// <summary>
     /// A blockage on the cable with a diagnostic conversation attached.
     ///
     /// <para>Placed at a fraction along the run rather than a fixed distance, so it lands

@@ -224,6 +224,10 @@ public static class Level05SceneBuilder
         allowed.GetArrayElementAtIndex(3).enumValueIndex = (int)IntentId.Left;
         directorSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        // A cable that crosses a hazard is a level that cannot be played as
+        // instructed. Checked here rather than found by driving down it.
+        CableBuilder.AssertCableIsClear(cable);
+
         // Put back any props moved by hand and saved. Does nothing until a layout
         // exists for this level, so procedural scatter stays the default.
         PropLayout.TryApply(5);

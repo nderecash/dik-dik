@@ -162,6 +162,19 @@ namespace Dikdik.Commands
         {
             IntentId.Help, IntentId.Repeat, IntentId.Restart,
 
+            // Back, everywhere, always.
+            //
+            // It was in the allowed list for two levels out of six, which meant that in the
+            // other four the answer to "back up" was "I did not understand". A playtest
+            // found the consequence in the dark level: the rover noses into a wall, the
+            // player says back, is told the word means nothing, turns instead, and the turn
+            // carries them sideways into a hazard.
+            //
+            // Reversing out of a mistake is not level content. It is the thing that makes a
+            // game with no failure state true rather than merely claimed, and a level that
+            // switches it off is a level that can strand you.
+            IntentId.Back,
+
             // The delight commands, everywhere, always. An easter egg that works in two
             // levels out of six is not an easter egg, it is a bug that some players will
             // find and reasonably report. And the reply to "can you jump" being "I did not

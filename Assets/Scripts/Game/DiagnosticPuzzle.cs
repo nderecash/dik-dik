@@ -31,7 +31,7 @@ namespace Dikdik.Game
     /// difficulty is vocabulary would fight everything Level 2 spends its whole runtime
     /// establishing.</para>
     /// </summary>
-    public class DiagnosticPuzzle : MonoBehaviour
+    public class DiagnosticPuzzle : MonoBehaviour, IResettable
     {
         private enum Phase { Waiting, Scanning, Offering, Working, Done }
 
@@ -209,6 +209,37 @@ namespace Dikdik.Game
 
             if (Bootstrap.Instance != null && Bootstrap.Instance.Comms != null)
                 Bootstrap.Instance.Comms.ClearPrompt();
+        }
+
+        /// <summary>
+        /// Put the blockage back for a fresh rehearsal run.
+        ///
+        /// <para>This was missing entirely, which is the same bug the checkpoints had: a
+        /// reset during the conversation stopped the coroutine partway, leaving the lamp
+        /// orange and a prompt on screen asking a question nothing was listening for any
+        /// more.</para>
+        ///
+        /// <para>The rock comes back too. A reset means the run happens again from the top,
+        /// and a blockage that stayed dissolved would quietly hand the player a shortcut
+        /// for having triggered a safety cutout.</para>
+        /// </summary>
+        public void ResetForSimulation()
+        {
+            StopAllCoroutines();
+
+            _phase = Phase.Waiting;
+
+            if (roverLight != null)
+                roverLight.Release();
+
+            if (Bootstrap.Instance != null && Bootstrap.Instance.Comms != null)
+                Bootstrap.Instance.Comms.ClearPrompt();
+
+            if (blockage != null)
+            {
+                blockage.gameObject.SetActive(true);
+                blockage.localPosition = _blockageStart;
+            }
         }
     }
 }

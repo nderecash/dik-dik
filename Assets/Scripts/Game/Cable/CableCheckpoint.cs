@@ -212,9 +212,21 @@ namespace Dikdik.Game.Cable
             }
         }
 
-        /// <summary>Put it back for a fresh rehearsal run.</summary>
+        /// <summary>
+        /// Put it back for a fresh rehearsal run.
+        ///
+        /// <para>Stopping the scan coroutine leaves whatever it had already done half done:
+        /// the marker orange, the lamp orange, the sweep bar mid-flight. Each of those has
+        /// to be undone here, because the code that would normally undo them is on the line
+        /// after the yield that just got cancelled.</para>
+        ///
+        /// <para>The rover's own hold is released by RoverController.ResetTo rather than
+        /// here, so that it happens exactly once no matter how many things were interrupted.</para>
+        /// </summary>
         public void ResetForSimulation()
         {
+            var wasScanning = IsScanning;
+
             if (_running != null)
             {
                 StopCoroutine(_running);
@@ -224,6 +236,11 @@ namespace Dikdik.Game.Cable
             IsScanned = false;
             IsScanning = false;
             Paint(waitingColour);
+
+            // Only if this checkpoint is the one that left it orange. Releasing
+            // unconditionally would clear a signal some other component had just set.
+            if (wasScanning && roverLight != null)
+                roverLight.Release();
 
             if (sweepBar != null)
                 sweepBar.gameObject.SetActive(false);

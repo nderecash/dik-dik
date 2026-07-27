@@ -347,6 +347,10 @@ public static class Level01SceneBuilder
         // game does early than as a twist in sector five.
         CableBuilder.AddPuzzle(cable, controller, roverLight, 0.55f);
 
+        // A cable that crosses a hazard is a level that cannot be played as
+        // instructed. Checked here rather than found by driving down it.
+        CableBuilder.AssertCableIsClear(cable);
+
         // Put back any props moved by hand and saved. Does nothing until a layout
         // exists for this level, so procedural scatter stays the default.
         PropLayout.TryApply(1);

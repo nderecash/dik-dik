@@ -32,10 +32,27 @@ public static class Level03SceneBuilder
     private const string ScenePath = "Assets/Scenes/Level03.unity";
     private const string MaterialFolder = "Assets/Materials";
 
-    private const float HalfWidth = 7f;
-    private const float WallHeight = 3.2f;
+    // Widened and lowered after a playtest. Was 7 and 3.2.
+    //
+    // At 7 the corridor could not absorb a turn given under a 2.6 second delay: by the
+    // time the rover finished swinging it was against a wall, and the walls at 3.2 were
+    // tall enough that the follow camera ended up inside one during the recovery turn,
+    // so the player was steering out of a collision they could no longer see.
+    //
+    // Level 1 already learned this and went from 5 to 3.2. This level is played in the
+    // dark, which makes every one of those problems worse, and it kept the old numbers.
+    private const float HalfWidth = 9f;
+    private const float WallHeight = 2.2f;
     private const float SegmentLength = 18f;
     private const int Segments = 3;
+
+    /// <summary>
+    /// Half-width of the clear lane down the middle, which the cable runs along.
+    ///
+    /// <para>Hazards start outside this and nothing else may enter it. The rover is 1.26
+    /// wide, so this leaves nearly two metres of margin either side of the line.</para>
+    /// </summary>
+    private const float SafeLaneHalfWidth = 2.5f;
 
     /// <summary>
     /// Which side the crevasse sits on at each decision point. The safe way is the
@@ -168,12 +185,25 @@ public static class Level03SceneBuilder
             SetRef(junctionSerialized, "marker", markerRenderer);
             junctionSerialized.ApplyModifiedPropertiesWithoutUndo();
 
-            // The crevasse, on one side of the way ahead.
+            // The crevasse, out to one side, clear of the cable.
+            //
+            // It used to sit at x 3.4 with a width of 6.4, so it reached in to x 0.2 while
+            // the cable runs along x 0. Following the line put half the rover inside a
+            // reset trigger, which is not a hazard, it is a trap with no tell.
+            //
+            // Now it starts at the edge of the safe lane and runs out to the wall. The
+            // meaning changes with the geometry and changes for the better: this is no
+            // longer a hole you must guess your way around, it is what is waiting if you
+            // leave the line. That is the same lesson the rest of the game teaches.
+            var inner = SafeLaneHalfWidth;
+            var outer = HalfWidth - 0.6f;
+            var width = outer - inner;
+
             var crevasse = GameObject.CreatePrimitive(PrimitiveType.Cube);
             crevasse.name = $"Crevasse {i + 1}";
             crevasse.transform.SetParent(hazards.transform);
-            crevasse.transform.position = new Vector3(HazardSide[i] * 3.4f, 0.02f, z);
-            crevasse.transform.localScale = new Vector3(6.4f, 0.06f, 7f);
+            crevasse.transform.position = new Vector3(HazardSide[i] * (inner + width * 0.5f), 0.02f, z);
+            crevasse.transform.localScale = new Vector3(width, 0.06f, 7f);
             crevasse.GetComponent<Renderer>().sharedMaterial = crevasseMaterial;
 
             var hazardCollider = crevasse.GetComponent<BoxCollider>();
@@ -266,6 +296,10 @@ public static class Level03SceneBuilder
         allowed.GetArrayElementAtIndex(3).enumValueIndex = (int)IntentId.Right;
         allowed.GetArrayElementAtIndex(4).enumValueIndex = (int)IntentId.Light;
         directorSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        // A cable that crosses a hazard is a level that cannot be played as
+        // instructed. Checked here rather than found by driving down it.
+        CableBuilder.AssertCableIsClear(cable);
 
         // Put back any props moved by hand and saved. Does nothing until a layout
         // exists for this level, so procedural scatter stays the default.

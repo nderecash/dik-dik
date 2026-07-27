@@ -1,0 +1,8 @@
+# Prop layout for Level 03.
+#
+# Written by Dikdik > Save Prop Layout. Read back by every regeneration of
+# this level, replacing the random scatter entirely.
+#
+# Delete this file to go back to procedural placement.
+#
+# model, posX, posY, posZ, eulerX, eulerY, eulerZ, scale, solid

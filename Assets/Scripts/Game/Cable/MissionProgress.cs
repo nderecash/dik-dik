@@ -62,7 +62,29 @@ namespace Dikdik.Game.Cable
             for (var i = 0; i < _checkpoints.Count; i++)
                 _checkpoints[i].Bind(this, i);
 
+            // Recount after a rehearsal reset, on the Restarted event rather than through
+            // IResettable.
+            //
+            // The counts here are derived from the checkpoints, so they are only correct
+            // once every checkpoint has already put itself back. IResettable is walked in
+            // whatever order FindObjectsByType returns, so implementing it would recount
+            // before or after the checkpoints depending on the day. Restarted fires after
+            // all of them, which is the ordering this actually needs.
+            //
+            // Without it the panel went on reporting three of three scanned over a cable
+            // that had just gone dark.
+            var simulation = FindAnyObjectByType<SimulationReset>();
+            if (simulation != null)
+                simulation.Restarted += Recount;
+
             Recount();
+        }
+
+        private void OnDestroy()
+        {
+            var simulation = FindAnyObjectByType<SimulationReset>();
+            if (simulation != null)
+                simulation.Restarted -= Recount;
         }
 
         /// <summary>Called by a checkpoint once its scan has finished and its report is spoken.</summary>

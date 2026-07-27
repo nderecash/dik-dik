@@ -25,7 +25,7 @@ namespace Dikdik.Game
     /// line is fully lit from end to end. Twenty scans across six sectors built that
     /// picture up a section at a time; this pays it off in one go.</para>
     /// </summary>
-    public class RepairFinale : MonoBehaviour
+    public class RepairFinale : MonoBehaviour, IResettable
     {
         private enum Phase { Waiting, Asking, AwaitingPlayer, Repairing, Done }
 
@@ -153,6 +153,26 @@ namespace Dikdik.Game
 
             if (director != null)
                 director.Complete();
+        }
+
+        /// <summary>
+        /// Put the ending back for a fresh rehearsal run.
+        ///
+        /// <para>Without this, a safety cutout during the repair leaves the phase stuck on
+        /// AwaitingPlayer with a prompt on screen that nothing is listening for, and the
+        /// game cannot be finished. The Update poll would never restart it, because that
+        /// only fires from Waiting.</para>
+        /// </summary>
+        public void ResetForSimulation()
+        {
+            StopAllCoroutines();
+            _phase = Phase.Waiting;
+
+            if (Bootstrap.Instance != null && Bootstrap.Instance.Comms != null)
+                Bootstrap.Instance.Comms.ClearPrompt();
+
+            if (roverLight != null)
+                roverLight.Release();
         }
     }
 }
