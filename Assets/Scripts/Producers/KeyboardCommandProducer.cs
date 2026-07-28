@@ -43,7 +43,13 @@ namespace Dikdik.Producers
             { IntentId.Light, Key.F },
             { IntentId.Wake, Key.Q },
             { IntentId.Repeat, Key.R },
-            { IntentId.Help, Key.H }
+            { IntentId.Help, Key.H },
+
+            // Restart was reachable by voice and by nothing else. It is in the bus's
+            // always-allowed list, which quietly assumes every input can produce it, and
+            // the keyboard could not. A keyboard player wedged against something had no
+            // way to ask for the run to start again.
+            { IntentId.Restart, Key.Backspace }
         };
 
         private readonly Dictionary<IntentId, Key> _bindings = new Dictionary<IntentId, Key>();

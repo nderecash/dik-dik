@@ -38,6 +38,14 @@ namespace Dikdik.Commands
         Spin,
         Dance,
         Greet,
-        Who
+        Who,
+
+        // The three answers to the blockage. Real intents rather than substrings matched
+        // against raw text, which is what they were, and which meant none of them worked:
+        // they were absent from the vocabulary so they resolved to None, and a keyboard
+        // press arrives as "W" or "Space" and matched nothing at all.
+        Cut,
+        Dissolve,
+        Push
     }
 }

@@ -133,22 +133,32 @@ namespace Dikdik.Game
             if (_phase != Phase.Offering)
                 return;
 
-            // The three options are read out of the raw text rather than given intents of
-            // their own. They exist for one beat in one place, and three IntentIds that
-            // mean nothing anywhere else in the game would be three more things every
-            // level has to know to allow.
-            var said = (intent.RawText ?? string.Empty).ToLowerInvariant();
+            // Named answers first, then a catch-all.
+            //
+            // The catch-all is not laziness, it is the promise. This prompt says out loud
+            // that any of them work, and an earlier version could not keep that: it read
+            // the three answers out of the raw transcript, so the words it named were
+            // absent from the vocabulary, resolved to nothing, and never arrived. On the
+            // keyboard it was worse. A key press carries "W" or "Space" as its text, which
+            // matched no substring, so a keyboard player was stopped in front of a rock
+            // with the rover scan-held and no input that could release it.
+            //
+            // So: anything the game understood at all gets the rover through. If the
+            // player has found a word this machine recognises, they have said enough.
+            switch (intent.Id)
+            {
+                case IntentId.Cut:
+                    StartCoroutine(Work(cutSeconds));
+                    break;
 
-            if (said.Contains("cut") || said.Contains("saw") || said.Contains("slice"))
-                StartCoroutine(Work(cutSeconds));
-            else if (said.Contains("dissolve") || said.Contains("melt") || said.Contains("acid"))
-                StartCoroutine(Work(dissolveSeconds));
-            else if (said.Contains("push") || said.Contains("shove") || said.Contains("ram") ||
-                     said.Contains("move") || said.Contains("go") || said.Contains("forward"))
-                StartCoroutine(Work(pushSeconds));
+                case IntentId.Dissolve:
+                    StartCoroutine(Work(dissolveSeconds));
+                    break;
 
-            // Anything else falls through and the prompt stays up. No scolding, no timer,
-            // and the question is still on screen when they are ready.
+                default:
+                    StartCoroutine(Work(pushSeconds));
+                    break;
+            }
         }
 
         private IEnumerator Work(float seconds)

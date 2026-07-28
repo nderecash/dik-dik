@@ -180,7 +180,12 @@ namespace Dikdik.Commands
             // find and reasonably report. And the reply to "can you jump" being "I did not
             // understand that" in exactly the levels where nobody thought to allow it is
             // the single worst thing this game could say.
-            IntentId.Jump, IntentId.Spin, IntentId.Dance, IntentId.Greet, IntentId.Who
+            IntentId.Jump, IntentId.Spin, IntentId.Dance, IntentId.Greet, IntentId.Who,
+
+            // The blockage answers. They belong to one beat in two levels, and a level
+            // that forgot to allow them would report the words its own prompt just named
+            // as not understood.
+            IntentId.Cut, IntentId.Dissolve, IntentId.Push
         };
 
         /// <summary>

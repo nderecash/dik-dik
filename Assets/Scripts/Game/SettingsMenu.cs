@@ -255,10 +255,23 @@ namespace Dikdik.Game
 
             var voiceAvailable = Bootstrap.Instance == null || Bootstrap.Instance.VoiceAvailable;
 
+            // Only write the setting back when the control is actually usable.
+            //
+            // It used to assign unconditionally, and the value it assigned was
+            // `VoiceEnabled && voiceAvailable`. So opening this tab during the second or
+            // two while whisper is still loading its model, or with a microphone briefly
+            // unplugged, wrote false into a setting the player had not touched and saved
+            // it. They then had voice permanently off, in a build whose whole point is
+            // voice, having done nothing but look at the settings screen.
+            //
+            // A disabled control shows state. It does not get to change it.
             GUI.enabled = voiceAvailable;
-            GameSettings.VoiceEnabled = GUILayout.Toggle(
-                GameSettings.VoiceEnabled && voiceAvailable, " Listen to my voice", toggle);
+            var wanted = GUILayout.Toggle(GameSettings.VoiceEnabled && voiceAvailable,
+                                          " Listen to my voice", toggle);
             GUI.enabled = true;
+
+            if (voiceAvailable)
+                GameSettings.VoiceEnabled = wanted;
 
             GUILayout.Label(voiceAvailable
                 ? "Speech is recognised on this machine. Nothing is sent anywhere."

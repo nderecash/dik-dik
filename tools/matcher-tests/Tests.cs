@@ -73,6 +73,35 @@ static class Tests
         Expect("wake up", IntentId.Wake);
         Expect("wake them", IntentId.Wake);
 
+        // The blockage answers.
+        //
+        // Every one of these returned None before the fix, because the puzzle matched
+        // substrings against the raw transcript and nobody had put the words into the
+        // vocabulary. The prompt named three answers out loud and all three failed. That
+        // is precisely the bug this file exists to catch, and it shipped anyway, because
+        // the file did not know these words were meant to mean anything.
+        Console.WriteLine("Blockage answers must resolve, a prompt names them:");
+        Expect("cut it", IntentId.Cut);
+        Expect("cut", IntentId.Cut);
+        Expect("cut through it", IntentId.Cut);
+        Expect("saw", IntentId.Cut);
+        Expect("dissolve it", IntentId.Dissolve);
+        Expect("dissolve", IntentId.Dissolve);
+        Expect("melt it", IntentId.Dissolve);
+        Expect("push it", IntentId.Push);
+        Expect("push", IntentId.Push);
+        Expect("shove it", IntentId.Push);
+
+        // And they must steal nothing. "push" and "go" both end with the rover moving, so
+        // either quietly becoming the other would be invisible until it mattered.
+        Console.WriteLine("And they steal nothing:");
+        Expect("go", IntentId.Go);
+        Expect("stop", IntentId.Stop);
+        Expect("back", IntentId.Back);
+        Expect("left", IntentId.Left);
+        Expect("right", IntentId.Right);
+        Expect("move forward", IntentId.Go);
+
         Console.WriteLine();
         Console.WriteLine(failures == 0
             ? $"PASS  {checks} checks, 0 failures"

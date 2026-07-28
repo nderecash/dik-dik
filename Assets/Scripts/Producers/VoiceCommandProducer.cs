@@ -104,10 +104,39 @@ namespace Dikdik.Producers
 
             if (CommandBus.Instance != null)
                 CommandBus.Instance.Register(this);
+
+            // Own the microphone's on/off state, rather than letting Bootstrap read the
+            // setting once at launch and walk away.
+            //
+            // That is what it did, and it made the setting a one-way door. Bootstrap
+            // checks GameSettings.VoiceEnabled inside Start and calls StartListening if it
+            // is true. Nothing anywhere reacted to it changing. So turning voice off and
+            // back on left the microphone off for the rest of the session, and unticking
+            // the box did not stop the microphone at all: it kept recording and
+            // transcribing after the player had asked it not to. Of the two, that second
+            // one is the serious one.
+            GameSettings.Changed += ApplyVoiceSetting;
+        }
+
+        /// <summary>Start or stop listening to match the player's setting, right now.</summary>
+        private void ApplyVoiceSetting()
+        {
+            if (GameSettings.VoiceEnabled && IsAvailable)
+            {
+                if (microphone != null && !microphone.IsRecording)
+                    StartListening();
+
+                return;
+            }
+
+            if (microphone != null && microphone.IsRecording)
+                StopListening();
         }
 
         private void OnDisable()
         {
+            GameSettings.Changed -= ApplyVoiceSetting;
+
             if (microphone != null)
             {
                 microphone.OnRecordStop -= OnRecordStop;

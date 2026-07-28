@@ -128,6 +128,32 @@ namespace Dikdik.Matching
                     "who am i talking to", "who is this"
                 },
 
+                // ----------------------------------------------------------
+                // The three answers to a blockage.
+                //
+                // These have to be here. The puzzle used to read them out of the raw
+                // transcript, so the words the prompt tells you to say were never in the
+                // vocabulary, resolved to nothing, and were reported as not understood.
+                // Every one of the three named answers failed.
+                // ----------------------------------------------------------
+                [IntentId.Cut] = new[]
+                {
+                    "cut through it", "cut it open", "cut it", "saw through it",
+                    "slice it", "cut", "saw", "slice"
+                },
+
+                [IntentId.Dissolve] = new[]
+                {
+                    "dissolve it", "melt it", "burn through it",
+                    "dissolve", "melt", "acid"
+                },
+
+                [IntentId.Push] = new[]
+                {
+                    "push through it", "shove it out the way", "push it",
+                    "shove it", "ram it", "push", "shove", "ram", "nudge"
+                },
+
                 // Repeat asks the rover to re-send its last message.
                 // Restart runs the whole sim again. Bare "again" belongs to Restart,
                 // so Repeat keeps only phrasings that clearly mean "say that once more".
