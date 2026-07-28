@@ -429,10 +429,20 @@ public static class CableBuilder
 
         built.Path.Build();
 
-        var hazards = Object.FindObjectsByType<Hazard>(FindObjectsInactive.Include,
-                                                       FindObjectsSortMode.None);
+        var hazards = Object.FindObjectsByType<Hazard>(FindObjectsInactive.Include);
         if (hazards.Length == 0)
             return;
+
+        // Collider.bounds is derived from the physics engine's copy of the transform, not
+        // from the transform itself, and that copy only refreshes on a physics step. Every
+        // object here was created at the origin and moved into place moments ago, in an
+        // editor script where no physics step has run, so without this every hazard still
+        // reports its bounds centred on zero.
+        //
+        // Which is exactly what happened the first time this check ran for real: it
+        // reported the cable crossing a crevasse that the scene file clearly showed sitting
+        // two and a half units clear of it.
+        Physics.SyncTransforms();
 
         // Walk the cable in short steps and check each point against every hazard's
         // bounds, grown by the rover's half width. Cheap: a few hundred checks at build
@@ -440,6 +450,7 @@ public static class CableBuilder
         const float step = 0.5f;
         var worst = 0f;
         var offender = string.Empty;
+        var offenderBounds = new Bounds();
 
         for (var d = 0f; d <= built.Path.TotalLength; d += step)
         {
@@ -469,14 +480,21 @@ public static class CableBuilder
 
                 worst = intrusion;
                 offender = hazard.name;
+                offenderBounds = bounds;
             }
         }
 
-        if (worst > 0f)
-            Debug.LogError(
-                $"[CableBuilder] The cable runs through hazard '{offender}', overlapping by " +
-                $"{worst:0.00} units once the rover's width is counted. Following the line " +
-                "will trigger a reset. Move the hazard clear of the route, or move the route.");
+        if (worst <= 0f)
+            return;
+
+        // The bounds go in the message. A previous version reported only the overlap, and
+        // working out whether the level was wrong or the check was wrong took reading the
+        // scene file by hand.
+        Debug.LogError(
+            $"[CableBuilder] The cable runs through hazard '{offender}', overlapping by " +
+            $"{worst:0.00} units once the rover's width is counted. Its bounds are " +
+            $"{offenderBounds.min:0.00} to {offenderBounds.max:0.00}. Following the line " +
+            "will trigger a reset. Move the hazard clear of the route, or move the route.");
     }
 
     /// <summary>
@@ -507,6 +525,19 @@ public static class CableBuilder
         {
             rock.name = "Rock";
             rock.transform.SetParent(root.transform, true);
+
+            // Snap it onto its root, which is the point on the cable.
+            //
+            // Without this it landed about eight units off the line. PlaceModel positions
+            // by adding the requested point to the pivot correction it applies inside
+            // InstantiateModel, and this model is scaled 5.5 times, so whatever residual
+            // the correction leaves gets multiplied into something you can see. A
+            // playtester found it by moving the rock back to the middle by hand.
+            //
+            // Setting the local position instead of trusting the world one removes the
+            // whole class of problem: the root is on the cable by construction, so a
+            // blockage at local zero is on the cable, whatever the model's pivot does.
+            rock.transform.localPosition = Vector3.zero;
         }
 
         // Trigger sits on the approach side, so the conversation starts before the rover
