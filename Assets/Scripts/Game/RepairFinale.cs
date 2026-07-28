@@ -90,7 +90,7 @@ namespace Dikdik.Game
             if (Bootstrap.Instance != null && Bootstrap.Instance.Comms != null)
                 Bootstrap.Instance.Comms.ShowPrompt(
                     "The break is right in front of it.",
-                    "Tell Salty to patch it. Anything you like.");
+                    "Tell Salty to fix it. Anything you like.");
 
             while (_phase == Phase.AwaitingPlayer)
                 yield return null;

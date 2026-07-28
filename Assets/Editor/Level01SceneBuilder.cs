@@ -245,11 +245,27 @@ public static class Level01SceneBuilder
         // ------------------------------------------------------------------
         // The way out
         // ------------------------------------------------------------------
+        // Shaped and placed for the leg it belongs to, which it never was.
+        //
+        // It sat on the last corner (2, 0.5, 30) as a box 6 wide in x, spanning x -1 to 5.
+        // But the corridor's final leg runs WEST along z 30 and ends at x 2, so three of
+        // those six units hung in open ground, directly over the rover's start lane at
+        // x 0. A player who said "go" twice and never turned drove straight up that lane
+        // and triggered it after 27.8 of the intended 56 metres, finishing the sector with
+        // zero of three sections scanned. Which is the first thing anybody does.
+        //
+        // A west-running leg is wide in z and thin in x, so the trigger is too, and it
+        // sits a little back INSIDE the leg rather than hanging off its end. World bounds
+        // become x 2 to 6 and z 25 to 35. The start lane is x -0.7 to 0.7, clear by 1.3.
+        //
+        // Arithmetic rather than eye, and AssertExitIsClearOfStartLane checks it every
+        // build so the next person to move a corner finds out immediately.
+        var exitCorner = corners[corners.Count - 1];
         var exit = new GameObject("Exit");
-        exit.transform.position = corners[corners.Count - 1] + Vector3.up * 0.5f;
+        exit.transform.position = new Vector3(exitCorner.x + 2f, 0.5f, exitCorner.z);
         var exitTrigger = exit.AddComponent<BoxCollider>();
         exitTrigger.isTrigger = true;
-        exitTrigger.size = new Vector3(6f, 4f, 3f);
+        exitTrigger.size = new Vector3(4f, 4f, CorridorHalfWidth * 2f);
 
         // ------------------------------------------------------------------
         // Camera. Pale sky, so everything solid reads as silhouette against it.
@@ -346,6 +362,12 @@ public static class Level01SceneBuilder
         // the rover having an opinion and asking for yours works better as something the
         // game does early than as a twist in sector five.
         CableBuilder.AddPuzzle(cable, controller, roverLight, 0.55f);
+
+        // Every word this level's prompts name out loud must actually resolve.
+        CableBuilder.AssertPromptWordsResolve("cut it", "dissolve it", "push it");
+
+        // The exit must not be reachable by driving straight off the start.
+        CableBuilder.AssertExitIsClearOfStartLane(cable, rover.transform);
 
         // A cable that crosses a hazard is a level that cannot be played as
         // instructed. Checked here rather than found by driving down it.

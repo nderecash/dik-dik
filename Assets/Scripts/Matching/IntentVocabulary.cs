@@ -154,6 +154,17 @@ namespace Dikdik.Matching
                     "shove it", "ram it", "push", "shove", "ram", "nudge"
                 },
 
+                // The ending. "fix it" leads because it is the plainest of them and the
+                // one a player reaches for without being coached. "patch it" is kept
+                // because that is what Control says, and a game that names a word in a
+                // prompt has to accept that word.
+                [IntentId.Repair] = new[]
+                {
+                    "fix the line", "fix the cable", "patch the line", "repair the line",
+                    "fix it", "patch it", "repair it", "mend it", "seal it", "weld it",
+                    "fix", "patch", "repair", "mend", "seal", "weld"
+                },
+
                 // Repeat asks the rover to re-send its last message.
                 // Restart runs the whole sim again. Bare "again" belongs to Restart,
                 // so Repeat keeps only phrasings that clearly mean "say that once more".

@@ -231,6 +231,9 @@ public static class Level02SceneBuilder
         allowed.GetArrayElementAtIndex(4).enumValueIndex = (int)IntentId.Open;
         directorSer.ApplyModifiedPropertiesWithoutUndo();
 
+        // The exit must not be reachable by driving straight off the start.
+        CableBuilder.AssertExitIsClearOfStartLane(cable, rover.transform);
+
         // A cable that crosses a hazard is a level that cannot be played as
         // instructed. Checked here rather than found by driving down it.
         CableBuilder.AssertCableIsClear(cable);

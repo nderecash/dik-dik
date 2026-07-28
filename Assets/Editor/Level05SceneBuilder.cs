@@ -35,9 +35,25 @@ public static class Level05SceneBuilder
     private const float PadHalfLength = 2.6f;     // pads are generous, this is hard enough
     private const float WallThickness = 1.2f;
 
-    // Stop pads down the run. The last has a wall just past it to catch a final overshoot.
+    // Stop pads down the run. The last has a wall well past it to catch a final overshoot.
     private static readonly float[] PadZ = { 14f, 30f, 46f };
-    private const float RunEnd = 52f;
+
+    // Was 52, which made the last pad unreachable and the level unfinishable.
+    //
+    // The arithmetic: the rover halts about 1.09 ahead of the backstop, so at z 50.31 with
+    // the wall at 52. Pad 3's far usable edge is z 49.3, so it needed a reverse of between
+    // 1.01 and 7.61. But the shortest reverse this game permits is 7.92, because only one
+    // command may be in flight, so "stop" cannot be queued behind "back" and the whole 2.6
+    // second delay runs before braking even starts. At this level's acceleration 2.2 and
+    // deceleration 1.1 that is 1.42 accelerating, 3.66 cruising, 2.84 coasting.
+    //
+    // 7.92 needed against 7.61 available, and symmetric, so the player oscillates across
+    // the pad forever. The class comment above promises "reverse back up" and the momentum
+    // values seventy lines down made it false.
+    //
+    // At 62 there is 11.7 of runway behind the wall and the minimum reverse lands inside
+    // pad 3 with room either side.
+    private const float RunEnd = 62f;
 
     [MenuItem("Dikdik/Generate Level 05")]
     public static void Generate()
@@ -170,10 +186,12 @@ public static class Level05SceneBuilder
         // stops the rover for you, sitting on a pad, would hand the player the exact thing
         // the level is asking them to earn. So the scans bracket the run instead: one
         // before the grade starts, one past the last pad, and the pads stay the objective.
-        // Pads sit at 14, 30 and 46. These sit at 6 and 52, well clear of all three.
+        // Pads sit at 14, 30 and 46. These sit at 6 and 54, clear of all three, and the
+        // second is no longer at RunEnd: it used to be, which buried its ring and both its
+        // posts inside the backstop wall.
         var cableCorners = new List<Vector3> { Vector3.zero, new Vector3(0f, 0f, RunEnd) };
         var cable = CableBuilder.Build(cableCorners, 2, false, controller, roverLight, audio,
-                                       new[] { 6f, RunEnd });
+                                       new[] { 6f, 54f });
         var mission = CableBuilder.AddMission(cable, controller, roverLight, director,
                                               completeOnScan: false);
         CableBuilder.AddHud(mission, controller, director);
@@ -216,13 +234,20 @@ public static class Level05SceneBuilder
         directorSerialized.FindProperty("nextSceneName").stringValue = "Level06";
         SetRef(directorSerialized, "simulation", simulation);
 
+        // Right was missing. Left was allowed and Right was not, which is not a design
+        // decision anybody would defend, and it halved the player's options in the one
+        // level where manoeuvring is the whole exercise.
         var allowed = directorSerialized.FindProperty("allowedIntents");
-        allowed.arraySize = 4;
+        allowed.arraySize = 5;
         allowed.GetArrayElementAtIndex(0).enumValueIndex = (int)IntentId.Go;
         allowed.GetArrayElementAtIndex(1).enumValueIndex = (int)IntentId.Stop;
         allowed.GetArrayElementAtIndex(2).enumValueIndex = (int)IntentId.Back;
         allowed.GetArrayElementAtIndex(3).enumValueIndex = (int)IntentId.Left;
+        allowed.GetArrayElementAtIndex(4).enumValueIndex = (int)IntentId.Right;
         directorSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        // The exit must not be reachable by driving straight off the start.
+        CableBuilder.AssertExitIsClearOfStartLane(cable, rover.transform);
 
         // A cable that crosses a hazard is a level that cannot be played as
         // instructed. Checked here rather than found by driving down it.

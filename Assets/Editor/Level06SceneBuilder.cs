@@ -157,6 +157,12 @@ public static class Level06SceneBuilder
         allowed.GetArrayElementAtIndex(4).enumValueIndex = (int)IntentId.Wake;
         directorSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+        // Every word this level's prompts name out loud must actually resolve.
+        CableBuilder.AssertPromptWordsResolve("fix it", "patch it", "repair it");
+
+        // The exit must not be reachable by driving straight off the start.
+        CableBuilder.AssertExitIsClearOfStartLane(cable, rover.transform);
+
         // A cable that crosses a hazard is a level that cannot be played as
         // instructed. Checked here rather than found by driving down it.
         CableBuilder.AssertCableIsClear(cable);

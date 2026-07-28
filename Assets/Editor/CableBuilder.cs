@@ -498,6 +498,108 @@ public static class CableBuilder
     }
 
     /// <summary>
+    /// Fail the build if a level's exit can be reached by driving straight off the start.
+    ///
+    /// <para>Level 1 could be finished in two words. Its exit trigger overhung the rover's
+    /// start lane by three metres, so "go", "go" ended the sector after 27.8 of its 56
+    /// metres with nothing scanned. It compiled, it rendered, the screenshots looked right,
+    /// and a player found it in the first thirty seconds because driving forward is the
+    /// first thing anybody does.</para>
+    ///
+    /// <para>This is the check that would have caught it. It costs nothing and it encodes
+    /// the thing a human tester will always try first.</para>
+    /// </summary>
+    public static void AssertExitIsClearOfStartLane(Built built, Transform rover,
+                                                    float roverHalfWidth = 0.75f)
+    {
+        if (rover == null || built.Path == null)
+            return;
+
+        Physics.SyncTransforms();
+        built.Path.Build();
+
+        var exits = Object.FindObjectsByType<LevelExit>(FindObjectsInactive.Include);
+        if (exits.Length == 0)
+            return;
+
+        var start = rover.position;
+        var forward = rover.forward;
+        var route = built.Path.TotalLength;
+
+        // Reaching the exit in a straight line is not the problem. On a straight corridor
+        // it is the whole level, and levels 3 and 4 are straight corridors.
+        //
+        // The problem is a straight line that is much SHORTER than the route, because that
+        // is a shortcut past the work. Level 1 was 27.8 straight against a 56 metre route,
+        // half the level skipped. Levels 3 and 4 come out at 97% and 94%, which is simply
+        // what a straight corridor looks like.
+        const float shortcutFraction = 0.85f;
+        const float step = 0.5f;
+        var reach = route * 1.5f;
+
+        foreach (var exit in exits)
+        {
+            var collider = exit.GetComponent<Collider>();
+            if (collider == null)
+                continue;
+
+            var bounds = collider.bounds;
+            bounds.Expand(new Vector3(roverHalfWidth * 2f, 0f, roverHalfWidth * 2f));
+
+            for (var d = 0f; d <= reach; d += step)
+            {
+                var point = start + forward * d;
+                var flat = new Vector3(point.x, bounds.center.y, point.z);
+
+                if (!bounds.Contains(flat))
+                    continue;
+
+                if (d >= route * shortcutFraction)
+                    break;
+
+                Debug.LogError(
+                    $"[CableBuilder] Exit '{exit.name}' is reachable {d:0.0} units straight off " +
+                    $"the start, against a route of {route:0.0}. That is {d / route:P0} of the " +
+                    "level, so a player who only ever says \"go\" finishes it without turning " +
+                    $"and without scanning. Exit bounds {bounds.min:0.00} to {bounds.max:0.00}, " +
+                    $"rover starts at {start:0.00} facing {forward:0.00}.");
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fail the build if a word the game says out loud is not a word the game understands.
+    ///
+    /// <para>Twice now. The blockage prompt named cut, dissolve and push, and none of the
+    /// three were in the vocabulary, so all three were reported as not understood. Then the
+    /// ending asked the player to patch the line, and patch, fix, repair and mend were all
+    /// missing too, so the game could not be completed by anybody.</para>
+    ///
+    /// <para>Both were the same mistake: a prompt is a promise, and nothing was checking
+    /// that the promise could be kept. Pass every phrase this level's prompts name.</para>
+    /// </summary>
+    public static void AssertPromptWordsResolve(params string[] phrases)
+    {
+        foreach (var phrase in phrases)
+        {
+            if (string.IsNullOrWhiteSpace(phrase))
+                continue;
+
+            var intent = Dikdik.Matching.FuzzyIntentMatcher.Match(
+                phrase, Dikdik.Commands.CommandSource.Voice);
+
+            if (intent.Id != Dikdik.Commands.IntentId.None)
+                continue;
+
+            Debug.LogError(
+                $"[CableBuilder] A prompt in this level tells the player to say \"{phrase}\", " +
+                "and the matcher resolves it to nothing. The game would report its own " +
+                "instruction as not understood. Add it to IntentVocabulary.");
+        }
+    }
+
+    /// <summary>
     /// A blockage on the cable with a diagnostic conversation attached.
     ///
     /// <para>Placed at a fraction along the run rather than a fixed distance, so it lands

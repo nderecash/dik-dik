@@ -92,6 +92,22 @@ static class Tests
         Expect("push", IntentId.Push);
         Expect("shove it", IntentId.Push);
 
+        // The repair words.
+        //
+        // The last command in the game, and none of these existed. The prompt said "patch
+        // it" and the matcher returned None for every word a player could reach for, so
+        // the game could not be finished by anybody. Second time the same mistake shipped:
+        // a prompt naming words the vocabulary did not contain.
+        Console.WriteLine("Repair words, the ending depends on them:");
+        Expect("fix it", IntentId.Repair);
+        Expect("fix", IntentId.Repair);
+        Expect("patch it", IntentId.Repair);
+        Expect("patch", IntentId.Repair);
+        Expect("repair it", IntentId.Repair);
+        Expect("mend it", IntentId.Repair);
+        Expect("seal it", IntentId.Repair);
+        Expect("fix the line", IntentId.Repair);
+
         // And they must steal nothing. "push" and "go" both end with the rover moving, so
         // either quietly becoming the other would be invisible until it mattered.
         Console.WriteLine("And they steal nothing:");

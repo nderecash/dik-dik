@@ -46,6 +46,14 @@ namespace Dikdik.Commands
         // press arrives as "W" or "Space" and matched nothing at all.
         Cut,
         Dissolve,
-        Push
+        Push,
+
+        // The last command in the game, and it did not exist.
+        //
+        // The ending asks you to patch the break in the line and then waits. There was no
+        // patch, fix, repair or mend anywhere in the vocabulary, so every word a player
+        // could reasonably try resolved to None, was reported as not understood, and never
+        // reached RepairFinale. The game could not be finished by anybody.
+        Repair
     }
 }

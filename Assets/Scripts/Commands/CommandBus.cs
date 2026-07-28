@@ -185,7 +185,10 @@ namespace Dikdik.Commands
             // The blockage answers. They belong to one beat in two levels, and a level
             // that forgot to allow them would report the words its own prompt just named
             // as not understood.
-            IntentId.Cut, IntentId.Dissolve, IntentId.Push
+            IntentId.Cut, IntentId.Dissolve, IntentId.Push,
+
+            // Repair. The last command in the game, and the one nothing may switch off.
+            IntentId.Repair
         };
 
         /// <summary>
