@@ -218,19 +218,65 @@ public static class BootSceneBuilder
         // Signal bar. Fills left to right as the command crosses the gap. Not a spinner:
         // a spinner claims the software is busy, this claims the rover is far away, and
         // only the second is true.
-        var bar = NewUiObject("Signal Bar", panel.transform);
+        // The microphone row. Its own line, at the top right of the panel, well away from
+        // the caption. These two used to share one text field and the mic state kept
+        // winning during the briefing, so the player was told to say something while
+        // Control was mid-sentence and never saw a subtitle.
+        var micDot = NewUiObject("Mic Dot", panel.transform);
+        var micDotRect = micDot.GetComponent<RectTransform>();
+        micDotRect.anchorMin = new Vector2(1f, 1f);
+        micDotRect.anchorMax = new Vector2(1f, 1f);
+        micDotRect.pivot = new Vector2(1f, 1f);
+        micDotRect.anchoredPosition = new Vector2(-232f, -14f);
+        micDotRect.sizeDelta = new Vector2(12f, 12f);
+
+        var micDotImage = micDot.AddComponent<Image>();
+        micDotImage.color = new Color(0.4f, 0.85f, 0.55f);
+        micDotImage.raycastTarget = false;
+
+        var micState = NewText("Mic State", panel.transform, 18, TextAnchor.UpperRight);
+        var micStateRect = micState.GetComponent<RectTransform>();
+        micStateRect.anchorMin = new Vector2(1f, 1f);
+        micStateRect.anchorMax = new Vector2(1f, 1f);
+        micStateRect.pivot = new Vector2(1f, 1f);
+        micStateRect.anchoredPosition = new Vector2(-28f, -8f);
+        micStateRect.sizeDelta = new Vector2(216f, 26f);
+
+        // A track that is always there, so the bar has somewhere to travel and the player
+        // can see how far there is left to go rather than only how far it has come.
+        var barTrack = NewUiObject("Signal Track", panel.transform);
+        var trackRect = barTrack.GetComponent<RectTransform>();
+        trackRect.anchorMin = new Vector2(0f, 0f);
+        trackRect.anchorMax = new Vector2(1f, 0f);
+        trackRect.offsetMin = new Vector2(28f, 14f);
+        trackRect.offsetMax = new Vector2(-28f, 28f);
+
+        var trackImage = barTrack.AddComponent<Image>();
+        trackImage.color = new Color(1f, 1f, 1f, 0.12f);
+        trackImage.raycastTarget = false;
+
+        // Not Image.Type.Filled. It was, and it never worked.
+        //
+        // A Filled image with no sprite falls through Image.OnPopulateMesh's early return
+        // before the type switch and draws one quad across the whole rect. fillAmount was
+        // written every frame and read by nothing, so the bar was permanently full and
+        // simply blinked on and off for 2.6 seconds. Both bars in this game had it.
+        //
+        // Assigning a builtin sprite is the obvious fix and does not work here:
+        // Resources.GetBuiltinResource already fails in batch mode in this project. So the
+        // right anchor does the work instead.
+        //
+        // Also taller. It was 6 canvas units, which is 4 screen pixels at 720p, and a 4
+        // pixel line that blinks is easy to read as nothing at all.
+        var bar = NewUiObject("Signal Bar", barTrack.transform);
         var barRect = bar.GetComponent<RectTransform>();
-        barRect.anchorMin = new Vector2(0f, 0f);
-        barRect.anchorMax = new Vector2(1f, 0f);
-        barRect.offsetMin = new Vector2(28f, 14f);
-        barRect.offsetMax = new Vector2(-28f, 20f);
+        barRect.anchorMin = Vector2.zero;
+        barRect.anchorMax = new Vector2(0f, 1f);
+        barRect.offsetMin = Vector2.zero;
+        barRect.offsetMax = Vector2.zero;
 
         var barImage = bar.AddComponent<Image>();
         barImage.color = new Color(0.55f, 0.75f, 1f);
-        barImage.type = Image.Type.Filled;
-        barImage.fillMethod = Image.FillMethod.Horizontal;
-        barImage.fillOrigin = 0;
-        barImage.fillAmount = 0f;
         barImage.raycastTarget = false;
 
         // Speaker badge: a small person icon and a name, shown only when someone is
@@ -271,6 +317,9 @@ public static class BootSceneBuilder
         SetRef(commsSerialized, "statusText", status);
         SetRef(commsSerialized, "background", background);
         SetRef(commsSerialized, "signalBar", barImage);
+        SetRef(commsSerialized, "signalTrack", trackImage);
+        SetRef(commsSerialized, "micStateText", micState);
+        SetRef(commsSerialized, "micDot", micDotImage);
         SetRef(commsSerialized, "speakerBadge", badge);
         SetRef(commsSerialized, "speakerName", speakerName);
         SetRef(commsSerialized, "speakerIconHead", head);

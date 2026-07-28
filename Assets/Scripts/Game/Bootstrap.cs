@@ -104,8 +104,16 @@ namespace Dikdik.Game
             if (comms != null)
                 voice.VoiceDetectedChanged += comms.SetListening;
 
-            if (GameSettings.VoiceEnabled)
-                voice.StartListening();
+            // Deliberately not StartListening() here any more.
+            //
+            // It used to open the microphone in Start, before the opening briefing had
+            // played a word. A playtester spoke during the cinematic and the game jammed,
+            // which is the obvious outcome: the game is talking, the player is talking,
+            // and neither of them was told whose turn it was.
+            //
+            // VoiceCommandProducer now owns this and opens the microphone when the
+            // briefing finishes. See ApplyVoiceSetting.
+            voice.ApplyVoiceSetting();
 #endif
         }
 

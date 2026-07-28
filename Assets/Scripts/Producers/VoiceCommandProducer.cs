@@ -116,12 +116,30 @@ namespace Dikdik.Producers
             // transcribing after the player had asked it not to. Of the two, that second
             // one is the serious one.
             GameSettings.Changed += ApplyVoiceSetting;
+
+            // And re-evaluate when a briefing ends, which is when the microphone is
+            // allowed to open. Without this the gate would close and never reopen.
+            if (VoiceArbiter.Instance != null)
+                VoiceArbiter.Instance.SequenceFinished += ApplyVoiceSetting;
         }
 
-        /// <summary>Start or stop listening to match the player's setting, right now.</summary>
-        private void ApplyVoiceSetting()
+        /// <summary>
+        /// Start or stop listening to match the player's setting and the state of the game,
+        /// right now.
+        ///
+        /// <para>The briefing gate is the second half of this. The microphone used to open
+        /// in Bootstrap.Start, before the opening had said a word, so the game was talking
+        /// and listening at the same time and never told the player which. Somebody spoke
+        /// during the cinematic and it jammed.</para>
+        ///
+        /// <para>A critical sequence is a briefing. While one is running the microphone
+        /// stays shut, the panel says so, and it opens the moment the sequence ends.</para>
+        /// </summary>
+        public void ApplyVoiceSetting()
         {
-            if (GameSettings.VoiceEnabled && IsAvailable)
+            var briefing = VoiceArbiter.Instance != null && VoiceArbiter.Instance.IsSequenceRunning;
+
+            if (GameSettings.VoiceEnabled && IsAvailable && !briefing)
             {
                 if (microphone != null && !microphone.IsRecording)
                     StartListening();
@@ -136,6 +154,9 @@ namespace Dikdik.Producers
         private void OnDisable()
         {
             GameSettings.Changed -= ApplyVoiceSetting;
+
+            if (VoiceArbiter.Instance != null)
+                VoiceArbiter.Instance.SequenceFinished -= ApplyVoiceSetting;
 
             if (microphone != null)
             {

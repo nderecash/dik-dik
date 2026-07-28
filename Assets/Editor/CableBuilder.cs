@@ -266,7 +266,10 @@ public static class CableBuilder
 
         var scaler = canvasObject.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1280f, 720f);
+
+        // Matches the Boot canvas. They used to differ, 1280x720 here against 1920x1080
+        // there, which happens to agree at 16:9 and drift at every other aspect ratio.
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
 
         canvasObject.AddComponent<GraphicRaycaster>();
@@ -274,12 +277,22 @@ public static class CableBuilder
         var panel = new GameObject("Mission Panel");
         panel.transform.SetParent(canvasObject.transform, false);
 
+        // Bottom left, not top left.
+        //
+        // It was top left under a comms panel that is a full-width band across the top at
+        // sortingOrder 100 against this canvas's 50. Measured: 93% of this panel was
+        // covered at both 720p and 1080p, leaving a 14 pixel sliver down the left. The
+        // playtester reported the mission panel as simply not appearing, which was exactly
+        // right.
+        //
+        // Moved rather than re-sorted. Putting this on top would bury the captions
+        // instead, and both panels want to be readable at the same time.
         var panelRect = panel.AddComponent<RectTransform>();
-        panelRect.anchorMin = new Vector2(0f, 1f);
-        panelRect.anchorMax = new Vector2(0f, 1f);
-        panelRect.pivot = new Vector2(0f, 1f);
-        panelRect.anchoredPosition = new Vector2(18f, -18f);
-        panelRect.sizeDelta = new Vector2(320f, 132f);
+        panelRect.anchorMin = new Vector2(0f, 0f);
+        panelRect.anchorMax = new Vector2(0f, 0f);
+        panelRect.pivot = new Vector2(0f, 0f);
+        panelRect.anchoredPosition = new Vector2(24f, 24f);
+        panelRect.sizeDelta = new Vector2(360f, 150f);
 
         var background = panel.AddComponent<Image>();
         background.color = new Color(0f, 0f, 0f, 0.55f);
@@ -299,22 +312,32 @@ public static class CableBuilder
         barBackRect.anchorMax = new Vector2(0f, 1f);
         barBackRect.pivot = new Vector2(0f, 1f);
         barBackRect.anchoredPosition = new Vector2(12f, -88f);
-        barBackRect.sizeDelta = new Vector2(296f, 8f);
+        barBackRect.sizeDelta = new Vector2(320f, 12f);
         barBack.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.14f);
 
+        // Not Image.Type.Filled. It was, and it did nothing.
+        //
+        // A Filled image with no sprite falls straight through: Image.OnPopulateMesh
+        // returns early when activeSprite is null, before the type switch ever runs, and
+        // emits one quad across the whole rect. So fillAmount was written every frame and
+        // read by nothing, and the bar was permanently 100% full, blinking on and off.
+        // Both bars in this game had it. The playtester reported "no filling bar", which
+        // was the right read of a bar that only ever showed one value.
+        //
+        // The obvious fix is to assign a sprite, and the obvious sprite is a Unity builtin,
+        // and Resources.GetBuiltinResource already fails in batch mode in this project.
+        // So: no sprite, no fill mode, drive the RectTransform's right anchor instead.
+        // Nothing to forget and nothing to fail silently.
         var barFill = new GameObject("Speed Bar");
         barFill.transform.SetParent(barBack.transform, false);
         var barFillRect = barFill.AddComponent<RectTransform>();
         barFillRect.anchorMin = Vector2.zero;
-        barFillRect.anchorMax = Vector2.one;
+        barFillRect.anchorMax = new Vector2(0f, 1f);
         barFillRect.offsetMin = Vector2.zero;
         barFillRect.offsetMax = Vector2.zero;
 
         var barImage = barFill.AddComponent<Image>();
         barImage.color = new Color(0.72f, 0.82f, 0.95f);
-        barImage.type = Image.Type.Filled;
-        barImage.fillMethod = Image.FillMethod.Horizontal;
-        barImage.fillAmount = 0f;
 
         var hud = panel.AddComponent<MissionHud>();
         var hudSerialized = new SerializedObject(hud);

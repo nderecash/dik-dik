@@ -283,9 +283,31 @@ namespace Dikdik.Commands
                 if (AllowedIntents[i] == intent.Id)
                     return intent;
 
-            // Keep the raw text. The player still said something, and the panel should
-            // show it back to them rather than pretending the room was silent.
+            // Understood, but this level has it switched off. Remember which, so the panel
+            // can say so.
+            //
+            // This distinction was computed here and then thrown away, and it cost a
+            // playtester a level. Stuck against a wall in sector 5, they said "open". The
+            // game knows perfectly well what "open" means; that level simply does not
+            // allow it. What they were told was "I did not understand that one", so they
+            // reasonably concluded the game had nothing for them and quit to the menu.
+            //
+            // Being misunderstood and being refused are different things and the player
+            // can act on the difference.
+            LastBlockedIntent = intent.Id;
             return Intent.Unrecognised(intent.Source, intent.RawText, intent.CreatedAt);
+        }
+
+        /// <summary>
+        /// The command that was understood but not permitted here, if the last failure was
+        /// that rather than a genuine mishearing. None otherwise.
+        /// </summary>
+        public IntentId LastBlockedIntent { get; private set; }
+
+        /// <summary>Called by the panel once it has reported the reason.</summary>
+        public void ClearLastBlocked()
+        {
+            LastBlockedIntent = IntentId.None;
         }
 
         /// <summary>Drop anything still crossing the gap. Used when a level resets.</summary>

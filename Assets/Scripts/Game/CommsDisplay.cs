@@ -42,8 +42,20 @@ namespace Dikdik.Game
         [SerializeField] private Image speakerIconHead;
         [SerializeField] private Image speakerIconBody;
 
-        [Tooltip("Fills as the command crosses the gap. Image type must be Filled.")]
+        [Tooltip("Grows left to right as the command crosses the gap. Driven by its right " +
+                 "anchor, not by fillAmount. See UpdateSignalBar.")]
         [SerializeField] private Image signalBar;
+
+        [Tooltip("The empty track behind the signal bar, so there is visibly somewhere left to go.")]
+        [SerializeField] private Image signalTrack;
+
+        [Header("Microphone state")]
+        [Tooltip("Its own row, separate from the caption. These used to share one field, " +
+                 "which meant the mic state overwrote Control's subtitles during the " +
+                 "briefing and the player never saw a word of it.")]
+        [SerializeField] private Text micStateText;
+
+        [SerializeField] private Image micDot;
 
         [Header("Timing")]
         [Tooltip("How long an acted-on message stays before returning to rest")]
@@ -339,14 +351,54 @@ namespace Dikdik.Game
             _replaced = Readable(dropped.Id);
         }
 
+        /// <summary>
+        /// Say what actually went wrong, and what the player can do about it.
+        ///
+        /// <para>This used to be one fixed apology for three different failures, which a
+        /// playtester summed up better than I can: "no input is wasted but anticipated and
+        /// guided, and the user is not just shouting into a void".</para>
+        ///
+        /// <para>The three are genuinely different and only one of them is a mishearing.
+        /// The worst case was the third: in sector 5 they said "open" against a wall, were
+        /// told the game did not understand, and quit to the menu. The game understood
+        /// perfectly. That level just does not allow it.</para>
+        /// </summary>
         private void OnNotUnderstood(Intent intent)
         {
-            // Never blame the player. "I did not understand" and not "invalid command".
-            var heard = string.IsNullOrWhiteSpace(intent.RawText)
-                ? "I did not catch that."
-                : Describe(intent);
+            var bus = CommandBus.Instance;
+            var blocked = bus != null ? bus.LastBlockedIntent : IntentId.None;
+            bus?.ClearLastBlocked();
 
-            Show(heard, "I did not understand that one. Try saying it another way.", missedColour);
+            // Understood, but switched off here. Name the word, so the player learns that
+            // it is a real word and this is the wrong place for it.
+            if (blocked != IntentId.None)
+            {
+                Show(Describe(intent),
+                     $"Salty knows \"{Readable(blocked)}\", but there is nothing to do that to here.",
+                     missedColour);
+
+                _clearAt = Time.time + holdSeconds;
+                return;
+            }
+
+            // Nothing arrived at all. Point at the mic row rather than at the player.
+            if (string.IsNullOrWhiteSpace(intent.RawText))
+            {
+                Show("Nothing came through.",
+                     "Check the microphone line on the right. Not your fault.",
+                     missedColour);
+
+                _clearAt = Time.time + holdSeconds;
+                return;
+            }
+
+            // Heard words, no match. This is the one where the player can actually fix it
+            // permanently, and the way to do that has been in the settings screen the whole
+            // time with nothing pointing at it.
+            Show(Describe(intent),
+                 "Not one of Salty's words yet.  Press ESC, Controls, to teach it.",
+                 missedColour);
+
             _clearAt = Time.time + holdSeconds;
         }
 
@@ -384,9 +436,14 @@ namespace Dikdik.Game
 
             if (heardText != null)
             {
-                heardText.text = _listening ? "Listening." : "Say something to the rover.";
-                // Back to the neutral colour, or a supervisor line leaves the resting
-                // prompt tinted its blue.
+                // Blank, not "Listening."
+                //
+                // This field used to carry the microphone state as well as the captions,
+                // and the two fought. During the briefing the mic state kept winning, so
+                // the player was told to say something while Control was mid-sentence and
+                // never saw a single subtitle. Mic state now lives on its own row and this
+                // one shows captions or nothing.
+                heardText.text = string.Empty;
                 heardText.color = GameSettings.HighContrast ? Color.white : new Color(0.92f, 0.94f, 0.96f);
             }
 
@@ -394,9 +451,69 @@ namespace Dikdik.Game
                 statusText.text = string.Empty;
         }
 
+        /// <summary>
+        /// The one place that says whether the microphone is open, and why not when it is
+        /// closed.
+        ///
+        /// <para>Polled from the real state every frame rather than pushed from wherever
+        /// somebody remembered to push it. A microphone indicator that can be wrong is
+        /// worse than none, because the player will believe it and then blame themselves.</para>
+        ///
+        /// <para>Order matters: the most specific reason wins. "Mic off" because the player
+        /// turned it off outranks "Control is speaking", which outranks "listening".</para>
+        /// </summary>
+        private void UpdateMicState()
+        {
+            if (micStateText == null)
+                return;
+
+            string label;
+            Color tint;
+
+            if (!GameSettings.VoiceEnabled)
+            {
+                label = "Mic off.  Keyboard only.";
+                tint = new Color(0.55f, 0.57f, 0.62f);
+            }
+            else if (Bootstrap.Instance != null && !Bootstrap.Instance.VoiceAvailable)
+            {
+                label = "Mic unavailable.  Keyboard works.";
+                tint = new Color(0.55f, 0.57f, 0.62f);
+            }
+            else if (Voice.VoiceArbiter.IsListeningBlocked)
+            {
+                label = "Mic closed while Control speaks.";
+                tint = new Color(0.62f, 0.78f, 1f);
+            }
+            else if (CommandBus.Instance != null && CommandBus.Instance.InTransitCount > 0)
+            {
+                label = "Sending.";
+                tint = transitColour;
+            }
+            else if (_listening)
+            {
+                label = "Hearing you.";
+                tint = new Color(0.5f, 1f, 0.65f);
+            }
+            else
+            {
+                label = "Listening.";
+                tint = new Color(0.4f, 0.85f, 0.55f);
+            }
+
+            micStateText.text = label;
+            micStateText.color = GameSettings.HighContrast ? Color.white : tint;
+
+            // The dot is the half you can read without reading. Colour alone carries no
+            // meaning here: the words are always next to it.
+            if (micDot != null)
+                micDot.color = GameSettings.HighContrast ? Color.white : tint;
+        }
+
         private void Update()
         {
             UpdateSignalBar();
+            UpdateMicState();
 
             if (_clearAt > 0f && Time.time >= _clearAt)
             {
@@ -415,10 +532,20 @@ namespace Dikdik.Game
 
             signalBar.enabled = inTransit;
 
+            if (signalTrack != null)
+                signalTrack.enabled = inTransit;
+
             if (!inTransit)
                 return;
 
-            signalBar.fillAmount = bus.TransitProgress;
+            // The right anchor, not fillAmount. See the comment in BootSceneBuilder: a
+            // Filled image with no sprite ignores fillAmount and draws itself full, so
+            // this bar spent its whole life at 100%.
+            var rect = signalBar.rectTransform;
+            rect.anchorMax = new Vector2(Mathf.Clamp01(bus.TransitProgress), 1f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
             signalBar.color = GameSettings.HighContrast ? Color.white : transitColour;
         }
 

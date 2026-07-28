@@ -140,7 +140,14 @@ namespace Dikdik.Game
                 return;
 
             var speed = Mathf.Abs(rover.CurrentSpeed);
-            speedBar.fillAmount = Mathf.Clamp01(speed / Mathf.Max(0.01f, fullScaleSpeed));
+            var fraction = Mathf.Clamp01(speed / Mathf.Max(0.01f, fullScaleSpeed));
+
+            // The right anchor, not fillAmount. See the comment in CableBuilder: a Filled
+            // image with no sprite ignores fillAmount entirely and draws itself full.
+            var rect = speedBar.rectTransform;
+            rect.anchorMax = new Vector2(fraction, 1f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
 
             // Red while shedding speed it was told to lose. On the slope level this is the
             // difference between "it is ignoring me" and "it is stopping, give it a moment".
