@@ -645,6 +645,10 @@ dotnet run --project tools/matcher-tests
 - Art and audio from [Kenney](https://kenney.nl), CC0.
 - Claude, used as described in [how this was built](#how-this-was-built).
 
+This project is MIT licensed. Full third-party terms, and a note on the two things that look
+like they might be third party and are not, in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
 ### Reading behind the design
 
 Full prior-art notes in [docs/latency-prior-art.md](docs/latency-prior-art.md).
