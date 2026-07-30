@@ -108,12 +108,28 @@ public static class BootSceneBuilder
 
         var serialized = new SerializedObject(bus);
 
-        // 2.6 seconds. The number came from round-trip light time to the Moon, about
-        // 2.56s, with Apollo 12 measuring 2.712s on the day. The story moved to an
-        // unnamed planet and the number stayed, because its real job was never the
-        // astronomy: it is applied to voice AND keyboard, measured from when the player
-        // finished giving the command, so neither route reaches the rover first.
-        serialized.FindProperty("transportDelay").floatValue = 2.6f;
+        // Zero. The deliberate delay is gone, on the designer's call.
+        //
+        // It was 2.6 seconds, from round-trip light time to the Moon, and it did two jobs.
+        // One was diegetic: the rover is far away and a signal takes time. The other was
+        // parity: the keyboard waited the same, so voice was never the slower option.
+        //
+        // The parity job is now done properly instead of by handicap. Onset timestamping
+        // (see Intent.StartedAt) makes both inputs land at decision time plus whatever the
+        // pipeline genuinely costs, so there is nothing left to equalise by taxing the fast
+        // path. The literature agrees and got there first: Zander et al. named latency
+        // balancing in 2005, and Bogon et al. (CHI 2025) found players pre-adapt to
+        // anticipated delay, so a uniform tax degrades the quick input without helping the
+        // slow one. See docs/latency-prior-art.md.
+        //
+        // The diegetic job was the honest half, and it loses to the thing this project is
+        // now actually about. A fixed delay on top of a real recognition delay meant the
+        // player waited twice, and only one of those waits was interesting.
+        //
+        // Kept as a serialized field rather than deleted, because the latency study sweeps
+        // it: how much delay a voice-driven vehicle tolerates is the open question, and you
+        // need the dial to ask it.
+        serialized.FindProperty("transportDelay").floatValue = 0f;
         serialized.ApplyModifiedPropertiesWithoutUndo();
 
         return bus;
@@ -137,13 +153,48 @@ public static class BootSceneBuilder
         whisper.singleSegment = true;
         whisper.initialPrompt = "";   // honest baseline; seeding is a lever held in reserve
 
+        // ------------------------------------------------------------------
+        // Latency. Three settings, and between them they were most of the wait.
+        // ------------------------------------------------------------------
+
+        // 1. audioCtx, and this was free money sitting on the floor.
+        //
+        // Zero means the default, 1500, which makes the encoder process a full THIRTY
+        // SECOND window no matter how much audio was actually captured. Commands here are
+        // about a second. whisper.cpp's own formula for the useful size is
+        // (audio_length / 30) * 1500 + 128, so a one-second utterance needs about 178, and
+        // upstream reports roughly a 3x encoder speedup on short clips.
+        //
+        // 256 rather than 178: a margin, because a slow speaker saying "turn to the left"
+        // is longer than a second, and the documented failure mode when this is set too
+        // low is the decoder producing nonsense rather than merely being less accurate.
+        whisper.audioCtx = 256;
+
         microphone.frequency = 16000;   // what whisper wants, so no resampling
         microphone.echo = false;        // playing the player's voice back at them is irritating
         microphone.useVad = true;
         microphone.vadStop = true;
-        microphone.vadStopTime = 1.5f;  // end of utterance on silence, generous for slow speech
         microphone.dropVadPart = true;
         microphone.maxLengthSec = 30;
+
+        // 2. vadStopTime, which was the biggest single cost in the whole pipeline and
+        //    nobody had noticed, including me.
+        //
+        // This is how long the microphone waits in silence before deciding the sentence is
+        // over. It was 1.5 seconds, and it is paid on every single command, before
+        // transcription has even started. The project's headline "1875 ms" figure was
+        // measured from the moment the microphone closed, so it never included this at all.
+        //
+        // 0.45 is short enough to feel responsive and long enough to survive the natural
+        // gap in "turn... left". Shorter than about 0.3 starts cutting people off mid
+        // sentence, which trades a latency complaint for a much worse one.
+        microphone.vadStopTime = 0.45f;
+
+        // 3. vadLastSec, the window the detector looks at to decide whether there is
+        //    speech in it. At 1.25 seconds the window has to fill with silence before it
+        //    reports silence, which adds lag to noticing the end of an utterance on top of
+        //    the timeout above. 0.5 still spans a syllable comfortably.
+        microphone.vadLastSec = 0.5f;
 
         var voice = root.AddComponent<VoiceCommandProducer>();
         var voiceSerialized = new SerializedObject(voice);

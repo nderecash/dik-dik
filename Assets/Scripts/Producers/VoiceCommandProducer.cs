@@ -103,7 +103,11 @@ namespace Dikdik.Producers
             }
 
             if (CommandBus.Instance != null)
+            {
                 CommandBus.Instance.Register(this);
+                CommandBus.Instance.CommandIssued += OnDelivered;
+                CommandBus.Instance.CommandNotUnderstood += OnDelivered;
+            }
 
             // Own the microphone's on/off state, rather than letting Bootstrap read the
             // setting once at launch and walk away.
@@ -165,7 +169,11 @@ namespace Dikdik.Producers
             }
 
             if (CommandBus.Instance != null)
+            {
+                CommandBus.Instance.CommandIssued -= OnDelivered;
+                CommandBus.Instance.CommandNotUnderstood -= OnDelivered;
                 CommandBus.Instance.Unregister(this);
+            }
         }
 
         public void StartListening()
@@ -193,6 +201,40 @@ namespace Dikdik.Producers
         /// The onset timestamp latency compensation runs on. See <see cref="Intent.StartedAt"/>.
         /// </summary>
         private float _speechStartedAt = -1f;
+
+        private LatencyLog.Sample _pending;
+        private bool _hasPending;
+
+        /// <summary>
+        /// Whisper is running right now.
+        ///
+        /// <para>Static so the console can read it without a reference across a scene
+        /// boundary, matching how the arbiter exposes its listening block.</para>
+        ///
+        /// <para>This exists because dropping the transport delay to zero left the interface
+        /// telling a small lie. The console used to say "Sending" while a command crossed the
+        /// gap, and with no gap left it went back to saying "Listening" during transcription.
+        /// It is not listening then. It is thinking, and those are different things to be
+        /// waiting on.</para>
+        /// </summary>
+        public static bool IsTranscribing { get; private set; }
+
+        /// <summary>
+        /// Close the latency row when the command reaches the rover.
+        ///
+        /// <para>Subscribed to both delivery events, because a command that was not understood
+        /// still cost the player exactly as long to find that out, and leaving those out of
+        /// the numbers would flatter them.</para>
+        /// </summary>
+        private void OnDelivered(Intent intent)
+        {
+            if (!_hasPending || intent.Source != CommandSource.Voice)
+                return;
+
+            _hasPending = false;
+            _pending.Delivered = CommandBus.Clock;
+            LatencyLog.Record(_pending);
+        }
 
         private void OnVadChanged(bool speaking)
         {
@@ -250,6 +292,7 @@ namespace Dikdik.Producers
                 return;
 
             _busy = true;
+            IsTranscribing = true;
             var stopwatch = Stopwatch.StartNew();
 
             try
@@ -280,6 +323,20 @@ namespace Dikdik.Producers
                 var intent = FuzzyIntentMatcher.Match(text, CommandSource.Voice)
                                                .At(startedAt, spokenAt);
 
+                // Hand the stage timings to the log so the delivery side can close the row
+                // when the command actually reaches the rover. Every stage separately,
+                // because one number for a four-stage pipeline is how the original figure
+                // came to be wrong by a factor of three.
+                _pending = new LatencyLog.Sample
+                {
+                    SpeechStart = startedAt,
+                    MicClosed = spokenAt,
+                    Transcribed = CommandBus.Clock,
+                    Transcript = text,
+                    Intent = intent.Id.ToString()
+                };
+                _hasPending = true;
+
                 // chunk.Data goes out of scope here and is never copied, stored or
                 // written to disk. The transcript survives; the audio does not.
                 CommandProduced?.Invoke(intent);
@@ -292,6 +349,7 @@ namespace Dikdik.Producers
             finally
             {
                 _busy = false;
+                IsTranscribing = false;
             }
         }
 

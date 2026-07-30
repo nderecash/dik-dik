@@ -485,6 +485,14 @@ namespace Dikdik.Game
                 label = "Mic closed while Control speaks.";
                 tint = new Color(0.62f, 0.78f, 1f);
             }
+            else if (Producers.VoiceCommandProducer.IsTranscribing)
+            {
+                // Not "Listening", which is what it used to fall back to here and is not
+                // true: the microphone has closed and Whisper is running. Waiting to be
+                // heard and waiting to be understood are different things to be told.
+                label = "Working out what you said.";
+                tint = transitColour;
+            }
             else if (CommandBus.Instance != null && CommandBus.Instance.InTransitCount > 0)
             {
                 label = "Sending.";
