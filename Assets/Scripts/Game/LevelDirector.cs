@@ -119,47 +119,113 @@ namespace Dikdik.Game
                 yield break;
             }
 
-            // Wait for the player rather than yanking them into the next sector. They
-            // just finished something and may want a moment; and being moved somewhere
-            // without agreeing to it is a small version of exactly what this game is
-            // about not doing.
-            _awaitingContinue = true;
-            Bootstrap.Instance?.Comms?.ShowPrompt(
-                "Sector clear.", "Say \"go\" when you're ready for the next stretch.");
+            // Load on a short timer, cancellable, rather than waiting to be told.
+            //
+            // It used to wait for "go" and nothing else. The reasoning was that being moved
+            // somewhere without agreeing to it is a small version of what this game argues
+            // against, which sounded right and played badly. A playtester's note: the end of
+            // a sector usually faces open ground, so a prompt asking you to say "go" arrives
+            // while you are looking at nothing in particular and reads as a chore.
+            //
+            // So the default flips. It advances, and staying is the thing you ask for. That
+            // is the same respect pointed the other way: the mission continues unless you
+            // want to look around, and if you do want to look around nothing hurries you.
+            for (var attempt = 0; ; attempt++)
+            {
+                // Clear both flags before counting. Escape doubles as the settings key, so
+                // it gets pressed during the browse period for reasons that have nothing to
+                // do with this countdown, and a stale flag would cancel the next offer the
+                // instant it appeared.
+                _stayRequested = false;
+                _continueRequested = false;
 
-            while (_awaitingContinue)
-                yield return null;
+                var cancelled = false;
+                var remaining = autoAdvanceSeconds;
+
+                while (remaining > 0f)
+                {
+                    if (!GamePause.IsPaused)
+                        remaining -= Time.unscaledDeltaTime;
+
+                    Bootstrap.Instance?.Comms?.ShowPrompt(
+                        attempt == 0 ? "Sector clear." : "Ready when you are.",
+                        $"Next sector in {Mathf.CeilToInt(remaining)}.  Press ESC to stay.");
+
+                    if (_stayRequested)
+                    {
+                        cancelled = true;
+                        break;
+                    }
+
+                    yield return null;
+                }
+
+                if (!cancelled)
+                    break;
+
+                // They want to keep exploring. Get out of the way completely, then ask again
+                // later rather than never, so nobody is stranded in a finished sector with
+                // no route onward.
+                Bootstrap.Instance?.Comms?.ClearPrompt();
+
+                var idle = 0f;
+                while (idle < reofferSeconds)
+                {
+                    if (!GamePause.IsPaused)
+                        idle += Time.unscaledDeltaTime;
+
+                    // A forward command during the browse period means they are done looking.
+                    if (_continueRequested)
+                    {
+                        _continueRequested = false;
+                        break;
+                    }
+
+                    yield return null;
+                }
+            }
 
             Bootstrap.Instance?.Comms?.ClearPrompt();
             SceneManager.LoadScene(nextSceneName);
         }
 
-        private bool _awaitingContinue;
+        [Header("Sector transition")]
+        [Tooltip("Seconds before the next sector loads by itself. ESC cancels and leaves the " +
+                 "player to explore.")]
+        [SerializeField] private float autoAdvanceSeconds = 3f;
+
+        [Tooltip("After cancelling, how long to leave them alone before offering again. " +
+                 "Never offering would strand somebody in a finished sector.")]
+        [SerializeField] private float reofferSeconds = 120f;
+
+        private bool _stayRequested;
+        private bool _continueRequested;
 
         /// <summary>
-        /// Any forward command moves to the next sector. Deliberately generous: go,
-        /// continue, carry on and keep going all already resolve to Go, and a player who
-        /// says something else entirely gets the usual "did not catch that" rather than
-        /// being stuck on a screen with one magic word.
+        /// A forward command during the browse period means they have finished looking
+        /// around. Generous on purpose: go, continue, carry on and keep going all resolve
+        /// to Go already.
         /// </summary>
         private void OnCommandForContinue(Intent intent)
         {
-            if (!_awaitingContinue)
-                return;
-
             if (intent.Id == IntentId.Go || intent.Id == IntentId.Wake)
-                _awaitingContinue = false;
+                _continueRequested = true;
         }
 
         private void Update()
         {
-            // Keyboard parity: the same beat is available without speaking. Not while
-            // the settings menu is up, or one press would dismiss a menu and skip a
-            // sector at the same time.
-            if (_awaitingContinue && !GamePause.IsPaused &&
-                (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) ||
-                 Input.GetKeyDown(KeyCode.Space)))
-                _awaitingContinue = false;
+            if (GamePause.IsPaused || !IsComplete)
+                return;
+
+            // ESC cancels the countdown. It is also the settings key, and SettingsMenu reads
+            // it too, so this fires alongside the menu opening rather than instead of it.
+            // That is acceptable: both mean "wait, I want to do something else."
+            if (Input.GetKeyDown(KeyCode.Escape))
+                _stayRequested = true;
+
+            // Keyboard parity for continuing, same as the voice path.
+            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+                _continueRequested = true;
         }
 
         private void OnSimulationRestarted()

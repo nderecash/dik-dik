@@ -56,6 +56,10 @@ namespace Dikdik.Game.Cable
 
         [SerializeField] private float sweepLength = 7f;
 
+        [Tooltip("How long the rover takes to glide into the middle of the gate on arrival. " +
+                 "Short enough not to be a delay, long enough not to look like a teleport.")]
+        [SerializeField] private float settleSeconds = 0.4f;
+
         [Header("Colours")]
         [SerializeField] private Color waitingColour = new Color(0.30f, 0.48f, 0.56f);
         [SerializeField] private Color scanningColour = new Color(1f, 0.62f, 0.18f);
@@ -124,6 +128,19 @@ namespace Dikdik.Game.Cable
             if (roverLight != null)
                 roverLight.SignalScanning();
 
+            // Beat 2b: settle into the middle of the gate.
+            //
+            // A playtester's note: "the rover is not stopping in the middle of the blue
+            // checkpoints, it would be good to be stopping in the middle." He was right, and
+            // the reason it did not is that the trigger is deliberately seven units wide so
+            // nobody misses a checkpoint by thirty centimetres. Generous triggers and tidy
+            // stopping positions are in tension, and the fix is to stop generously and then
+            // tidy up.
+            //
+            // Safe to move the rover here because BeginScanHold already took the wheel, so
+            // nothing else is writing this transform.
+            yield return SettleIntoCentre();
+
             // Beat 3: sweep and tone, together.
             if (audioSource != null && scanTone != null)
                 audioSource.PlayOneShot(scanTone);
@@ -154,6 +171,39 @@ namespace Dikdik.Game.Cable
                 _progress.ReportScanned(this);
 
             _running = null;
+        }
+
+        /// <summary>
+        /// Glide the rover into the middle of the gate before scanning.
+        ///
+        /// <para>Eased rather than snapped. A teleport of a metre and a half is small enough
+        /// to be missed and large enough to look like a glitch when it is not missed. Eased
+        /// over four tenths of a second it reads as the rover positioning itself, which is
+        /// what it is doing.</para>
+        ///
+        /// <para>Height and heading are left alone. Only where it is standing changes.</para>
+        /// </summary>
+        private IEnumerator SettleIntoCentre()
+        {
+            var from = rover.transform.position;
+            var to = new Vector3(transform.position.x, from.y, transform.position.z);
+
+            // Already close enough that moving would be the only thing anyone noticed.
+            if (Vector3.Distance(from, to) < 0.15f)
+                yield break;
+
+            var elapsed = 0f;
+            while (elapsed < settleSeconds)
+            {
+                if (!GamePause.IsPaused)
+                    elapsed += Time.unscaledDeltaTime;
+
+                var t = Mathf.Clamp01(elapsed / settleSeconds);
+                rover.transform.position = Vector3.Lerp(from, to, t * t * (3f - 2f * t));
+                yield return null;
+            }
+
+            rover.transform.position = to;
         }
 
         /// <summary>
