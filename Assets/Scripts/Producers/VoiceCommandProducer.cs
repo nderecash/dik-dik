@@ -188,14 +188,29 @@ namespace Dikdik.Producers
                 microphone.StopRecord();
         }
 
+        /// <summary>
+        /// When voice detection last fired, on the bus clock. Negative when not yet set.
+        /// The onset timestamp latency compensation runs on. See <see cref="Intent.StartedAt"/>.
+        /// </summary>
+        private float _speechStartedAt = -1f;
+
         private void OnVadChanged(bool speaking)
         {
             VoiceDetectedChanged?.Invoke(speaking);
 
-            // Put the rover on alert the moment somebody starts talking, before anyone
-            // knows what they are saying. It eases off rather than acting, so the
-            // transport delay is untouched, and the keyboard producer does the same on key
-            // down so neither input is privileged. See RoverController.SetAttentive.
+            // Two jobs on the same event, worth telling apart.
+            //
+            // The first is the attention reflex: put the rover on alert the moment somebody
+            // starts talking, before anyone knows what they are saying. It eases off rather
+            // than acting, so the transport delay is untouched, and the keyboard producer
+            // does the same on key down so neither input is privileged.
+            //
+            // The second is timestamping. This instant, not the one when they stop talking,
+            // is when the player decided. Recorded here, applied in OnRecordStop, and it is
+            // what latency compensation runs on. See Intent.StartedAt.
+            if (speaking && _speechStartedAt < 0f)
+                _speechStartedAt = CommandBus.Clock;
+
             Dikdik.Game.RoverAttention.SetVoiceDetectedStatic(speaking);
         }
 
@@ -206,6 +221,15 @@ namespace Dikdik.Producers
             // this line is us catching up, and the transport delay is measured from the
             // person rather than from our own processing.
             var spokenAt = CommandBus.Clock;
+
+            // And when they started, from the voice-detection onset. Falls back to the end
+            // stamp if no onset was seen, which keeps the old behaviour rather than
+            // inventing a compensation out of a missing measurement.
+            //
+            // Consumed and reset here, because the next utterance needs its own onset and
+            // listening has already restarted below.
+            var startedAt = _speechStartedAt >= 0f ? _speechStartedAt : spokenAt;
+            _speechStartedAt = -1f;
 
             // Restart straight away so we are listening again while whisper thinks.
             // Otherwise the player learns to wait for us, which is backwards.
@@ -247,10 +271,14 @@ namespace Dikdik.Producers
 
                 TranscriptReady?.Invoke(text, stopwatch.ElapsedMilliseconds);
 
-                // Stamped with when they stopped speaking, not with now. By this point
-                // whisper has eaten most of the transport budget, so the bus holds this
-                // for whatever is left rather than starting the clock again.
-                var intent = FuzzyIntentMatcher.Match(text, CommandSource.Voice).At(spokenAt);
+                // Both stamps, not now. By this point whisper has eaten most of the
+                // transport budget, so the bus holds this for whatever is left rather than
+                // starting the clock again.
+                //
+                // startedAt is what the bus schedules from when compensation is on, so a
+                // player is not charged for the time it took them to say the word.
+                var intent = FuzzyIntentMatcher.Match(text, CommandSource.Voice)
+                                               .At(startedAt, spokenAt);
 
                 // chunk.Data goes out of scope here and is never copied, stored or
                 // written to disk. The transcript survives; the audio does not.

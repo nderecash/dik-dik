@@ -117,8 +117,19 @@ namespace Dikdik.Producers
                     // parity this whole project rests on would quietly stop being true.
                     Dikdik.Game.RoverAttention.NoteKeyPressStatic();
 
+                    // Both timestamps are the same instant, because a key press has no
+                    // expression time: deciding and acting happen together.
+                    //
+                    // That is exactly why latency compensation costs the keyboard nothing.
+                    // The correction it applies is the length of the utterance, and this
+                    // input has none, so the two modalities end up landing at decision time
+                    // plus the transport delay without the keyboard being taxed for it. See
+                    // CommandBus.DeliveryTimeFor.
+                    var pressedAt = CommandBus.Clock;
+
                     CommandProduced?.Invoke(
-                        new Intent(pair.Key, CommandSource.Keyboard, pair.Value.ToString(), 1f, CommandBus.Clock));
+                        new Intent(pair.Key, CommandSource.Keyboard, pair.Value.ToString(),
+                                   1f, pressedAt, pressedAt));
                 }
             }
         }

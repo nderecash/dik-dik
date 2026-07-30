@@ -86,8 +86,18 @@ namespace Dikdik.Commands
                 if (_inTransit.Count == 0 || transportDelay <= 0f)
                     return 1f;
 
-                var elapsed = Clock - _inTransit[0].CreatedAt;
-                return Mathf.Clamp01(elapsed / transportDelay);
+                // Measured against the same schedule that actually delivers, so the bar
+                // cannot disagree with the rover. Computing this from CreatedAt while
+                // delivery ran off DeliveryTimeFor would leave the bar short of full at the
+                // moment the command landed, which reads as the interface lying.
+                var intent = _inTransit[0];
+                var arrives = DeliveryTimeFor(intent);
+                var started = arrives - transportDelay;
+
+                if (Clock <= started)
+                    return 0f;
+
+                return Mathf.Clamp01((Clock - started) / transportDelay);
             }
         }
 
@@ -254,12 +264,59 @@ namespace Dikdik.Commands
 
             // Commands arrive in the order they were sent. A later command cannot
             // overtake an earlier one just because it was understood faster.
-            while (_inTransit.Count > 0 && now - _inTransit[0].CreatedAt >= transportDelay)
+            while (_inTransit.Count > 0 && now >= DeliveryTimeFor(_inTransit[0]))
             {
                 var intent = _inTransit[0];
                 _inTransit.RemoveAt(0);
                 Deliver(intent);
             }
+        }
+
+        [Header("Latency compensation")]
+        [Tooltip("Schedule delivery from when the player STARTED giving the command rather " +
+                 "than when they finished. Off reproduces the original behaviour exactly, " +
+                 "which is what the study needs. See DeliveryTimeFor.")]
+        [SerializeField] private bool compensateForExpressionTime = true;
+
+        /// <summary>
+        /// When a command should reach the rover.
+        ///
+        /// <para><b>Off:</b> the original behaviour. The delay starts when the player stopped
+        /// talking, which quietly charges voice for the length of the utterance. Saying "stop"
+        /// from T to T+0.5 lands at T+3.1; a key pressed at T lands at T+2.6. Same decision,
+        /// same instant, half a second apart.</para>
+        ///
+        /// <para><b>On:</b> the delay starts when they began. Both modalities then land at
+        /// decision time plus the transport delay, and the parity this project rests on stops
+        /// depending on nobody speaking slowly. A keyboard press has no expression time, so
+        /// nothing changes for it, which is the point: the correction is exactly the size of
+        /// the unfairness.</para>
+        ///
+        /// <para>The floor is what makes it safe. A command cannot be delivered before it was
+        /// understood, so a long sentence plus slow transcription simply arrives as soon as it
+        /// resolves rather than arriving in the past. Under that floor compensation stops
+        /// helping rather than starting to lie, which is the right failure direction.</para>
+        ///
+        /// <para>This is the timestamp half of the technique. Rewinding the rover's position
+        /// is the other half and lives in RoverController. This half is safe enough to ship
+        /// because nothing visibly moves: a command simply arrives when it should have.</para>
+        /// </summary>
+        public float DeliveryTimeFor(Intent intent)
+        {
+            if (!compensateForExpressionTime)
+                return intent.CreatedAt + transportDelay;
+
+            var wanted = intent.StartedAt + transportDelay;
+            var earliest = intent.CreatedAt;
+
+            return wanted > earliest ? wanted : earliest;
+        }
+
+        /// <summary>Turn compensation on or off at runtime. Used by the latency study.</summary>
+        public bool CompensateForExpressionTime
+        {
+            get => compensateForExpressionTime;
+            set => compensateForExpressionTime = value;
         }
 
         private void Deliver(Intent intent)

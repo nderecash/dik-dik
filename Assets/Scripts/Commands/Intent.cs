@@ -26,15 +26,47 @@ namespace Dikdik.Commands
         /// </summary>
         public readonly float CreatedAt;
 
+        /// <summary>
+        /// When the player <em>started</em> giving this command.
+        ///
+        /// <para>The second timestamp, and the one latency compensation runs on. For a key
+        /// press it is the same instant as <see cref="CreatedAt"/>. For speech it is when
+        /// voice detection first fired, roughly a tenth of a second after they opened their
+        /// mouth, and typically half a second before they closed it.</para>
+        ///
+        /// <para><b>Why the difference matters.</b> Measuring from speech end quietly taxes
+        /// voice by the length of the utterance. Say "stop" starting at T, finish at T+0.5,
+        /// and the command lands at T+3.1 while a key pressed at T lands at T+2.6. The
+        /// decision was made at T in both cases; only one of them was charged for the time
+        /// it took to express it.</para>
+        ///
+        /// <para>The 2.6 second transport delay is deliberate and stays. The extra half
+        /// second was an artefact of measuring from the wrong end.</para>
+        /// </summary>
+        public readonly float StartedAt;
+
         public Intent(IntentId id, CommandSource source, string rawText,
-                      float confidence = 1f, float createdAt = 0f)
+                      float confidence = 1f, float createdAt = 0f, float startedAt = -1f)
         {
             Id = id;
             Source = source;
             RawText = string.IsNullOrEmpty(rawText) ? string.Empty : rawText;
             Confidence = confidence;
             CreatedAt = createdAt;
+
+            // Default to the end stamp when no onset is known, so anything that has not
+            // been taught about onsets behaves exactly as it did before.
+            StartedAt = startedAt < 0f ? createdAt : startedAt;
         }
+
+        /// <summary>
+        /// How long the player spent giving this command. Zero for a key press.
+        ///
+        /// <para>Written without Mathf on purpose. This file is linked into the matcher test
+        /// project, which compiles with plain dotnet and has no UnityEngine reference, and
+        /// that is the whole reason the matcher can be tested in a second.</para>
+        /// </summary>
+        public float ExpressionSeconds => CreatedAt > StartedAt ? CreatedAt - StartedAt : 0f;
 
         /// <summary>True when we worked out what the player wanted.</summary>
         public bool IsRecognised => Id != IntentId.None;
@@ -48,11 +80,18 @@ namespace Dikdik.Commands
         /// actually closed or the key actually went down.
         /// </summary>
         public Intent At(float createdAt) =>
-            new Intent(Id, Source, RawText, Confidence, createdAt);
+            new Intent(Id, Source, RawText, Confidence, createdAt, createdAt);
+
+        /// <summary>
+        /// The same command, stamped with when the player started and finished giving it.
+        /// </summary>
+        public Intent At(float startedAt, float createdAt) =>
+            new Intent(Id, Source, RawText, Confidence, createdAt, startedAt);
 
         /// <summary>An unrecognised command. We still keep the raw text so we can show it back.</summary>
-        public static Intent Unrecognised(CommandSource source, string rawText, float createdAt = 0f) =>
-            new Intent(IntentId.None, source, rawText, 0f, createdAt);
+        public static Intent Unrecognised(CommandSource source, string rawText, float createdAt = 0f,
+                                          float startedAt = -1f) =>
+            new Intent(IntentId.None, source, rawText, 0f, createdAt, startedAt);
 
         public override string ToString() =>
             $"{Id} (from {Source}, \"{RawText}\", confidence {Confidence:0.00})";
