@@ -10,6 +10,12 @@ no account and no cloud. Every command also works on the keyboard.
 
 This document is the spine. Where something has a longer version, it is linked.
 
+**Two kinds of document live in this repository.** `docs/` is written for a reader.
+[`docs/notes/`](docs/notes/) is the working notes the project was actually built from: second
+person, half-finished, occasionally overtaken by the code, and kept on purpose. A project
+arguing for showing your work should show it.
+
+- [Why it is called Dik-dik](#why-it-is-called-dik-dik)
 - [The number, and what it actually showed](#the-number-and-what-it-actually-showed)
 - [Why I made this](#why-i-made-this)
 - [The game](#the-game)
@@ -23,6 +29,32 @@ This document is the spine. Where something has a longer version, it is linked.
 - [Running it](#running-it)
 - [Credits](#credits)
 - [What I would do next](#what-i-would-do-next)
+
+---
+
+## Why it is called Dik-dik
+
+A dik-dik is a very small antelope, and **it is named after a sound.**
+
+The name is onomatopoeic. It comes from the sharp repeated whistle the female makes through
+her long tubular snout when she senses something wrong, recorded by East African hunters and
+naturalists as *dik-dik* or *zik-zik*. The animal is not named for how it looks, where it
+lives or what it eats. It is named for the noise it makes when it wants to be heard.
+
+For a game where nothing happens until someone speaks, that was too good to pass up.
+
+Two other things fit. It is the smallest antelope there is, and this is deliberately a small
+game. And when a dik-dik senses danger it does not bolt straight away: it goes low and stays
+put, waiting, then moves in a zigzag once it has decided. A machine that holds still until it
+has a reason is roughly the character I was after.
+
+The rover itself is called Salty, which was chosen from a shortlist for no better reason than
+that it sounded like something a surface team would actually name a vehicle they were annoyed
+with.
+
+Sources: [Wikipedia](https://en.wikipedia.org/wiki/Dik-dik) ·
+[Smithsonian](https://www.smithsonianmag.com/science-nature/what-in-the-world-is-a-dik-dik-39681860/) ·
+[African Wildlife Foundation](https://www.awf.org/wildlife-conservation/dik-dik)
 
 ---
 
@@ -637,8 +669,8 @@ Full prior-art notes in [docs/latency-prior-art.md](docs/latency-prior-art.md).
 ## What I would do next
 
 Designed, costed, and deliberately not built. Longer write-ups in
-[docs/future-directions.md](docs/future-directions.md), and open items in
-[docs/OPEN-ISSUES.md](docs/OPEN-ISSUES.md).
+[docs/future-directions.md](docs/future-directions.md), and the live list of known problems
+in [docs/notes/OPEN-ISSUES.md](docs/notes/OPEN-ISSUES.md).
 
 **Non-verbal input, and it is the one that matters.** During remapping, record any sound at
 all: a grunt, a hum, a whistle, a click. Map each to a command. The game becomes playable
