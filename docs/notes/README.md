@@ -24,6 +24,8 @@ because a project that argues for showing your work should show it.
 | `TASK-github-contribution.md` | A drafted upstream contribution to whisper.unity, not yet filed |
 | `demo-video.md` | Shot list for a demo video |
 | `itch-page.md` | Draft store page copy |
+| `level-design-brief.md` | The brief the six sectors were designed against, written as a set of open questions. Most were answered in `docs/levels.md` |
+| `voice-recording-guide.md` | How to record and process the voice performance |
 
 ## If you are looking for the documented version
 

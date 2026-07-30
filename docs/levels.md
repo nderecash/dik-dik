@@ -224,36 +224,48 @@ so that stays true.
 > **"Provide subtitles for all important speech"**
 > **"If any subtitles / captions are used, present them in a clear, easy to read way"**
 
-**What happens.** Salty climbs to the rim for line of sight. At the top, the reveal: the
-dormant rovers scattered on the plain below, all of them. The player switches off the
-directed channel and onto the open loop.
+**What happens now.** The last stretch of relay line, and the break in it. The final
+checkpoint is the only one in the game flagged as the fault: it reports a fault instead of a
+clean section, turns the lamp red instead of green, and lights its length of cable red. Then
+Control asks the player to fix it, and waits, for as long as that takes. Any command works.
+The whole cable lights end to end, and the power comes back.
 
-Then the game plays the player's own voice back. Every clip recorded across the whole game,
-in the order it was said, unedited, with its transcript running underneath. The rovers wake
-as it plays.
+**Intents.** Go, Stop, Left, Right, Repair.
 
-```
-SALTY:    [reaches the rim]
-CONTROL:  "There. All of them."
-CONTROL:  "Open loop. Say it once."
+**Build notes.** `RepairFinale` drives this. `MissionProgress` has `completeOnScan` off for
+this level alone, because finding the fault is not finishing the game; fixing it is.
 
-          [your voice, every clip, in order]
+---
 
-          [they start waking]
-```
-
-**Intents.** Go, Stop, Left, Right, Wake.
-
-**Build notes.** `VoiceJournal.BuildBroadcast()` and `BroadcastTranscript()` already exist.
-Rovers wake in sequence with the clips, so the count of what wakes is the count of what the
-player said.
+> ### Superseded: the original ending
+>
+> This is kept because the reason it was replaced is the most useful thing in this document.
+>
+> The plan was that Salty climbs the rim, reveals a field of dormant rovers on the plain
+> below, and the player switches from the directed channel onto the open loop. Then the game
+> plays the player's own voice back: every clip recorded across the whole game, in the order
+> it was said, unedited, transcript running underneath, and the rovers wake as it plays. The
+> hesitations were to stay in. The false starts, the "whoa, whoa, whoa". A cleaned broadcast
+> would have been a different voice and a smaller idea.
+>
+> On paper it was the best idea in the project. The thing that reaches everyone else was
+> never translated into anything; it was just the player, played back.
+>
+> It was built, and it worked. Then it was played, and it felt like being watched.
+>
+> A microphone does not record commands. It records a room. What came back was not someone
+> giving instructions, it was the background of wherever they had been sitting, captured
+> alongside them and played at them later.
+>
+> So the retention went, not just the ending. `VoiceJournal`, `BuildBroadcast()`,
+> `BroadcastTranscript()` and `DormantRover` are all deleted. Audio is now transcribed and
+> dropped inside the method that receives it. Nothing copies it, stores it, or writes it to
+> disk.
+>
+> The full account is in the [README](../README.md#the-feature-i-built-played-and-deleted).
 
 `sup_final_06`, the one line permitted to state the theme, is cut. The ending says it, and
 saying it twice would be saying it worse.
-
-**The hesitations stay in.** The false starts, the sentence where the player told Salty it
-was going the wrong way, the "whoa, whoa, whoa". A cleaned broadcast would be a different
-voice and a smaller idea.
 
 ---
 

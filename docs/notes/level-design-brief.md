@@ -4,7 +4,7 @@ You are designing **six** levels. This document gives you the verified constrain
 you are designing against real guidelines rather than remembered ones.
 
 > Six, not five. Non-verbal input was briefly going to replace the sixth level and is now
-> deferred to [future-directions.md](future-directions.md) instead, written up as designed
+> deferred to [future-directions.md](../future-directions.md) instead, written up as designed
 > and costed rather than as something we could not do. The rule from here on: anything
 > expensive goes on that page rather than into the build.
 

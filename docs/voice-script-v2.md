@@ -3,7 +3,7 @@
 **Read the story section first and push back on it before you record anything.** I filled
 gaps your notes left open, and every invention is marked ⚑ so you can overrule it.
 
-Recording technique has not changed: [TASK-voice-recording.md](TASK-voice-recording.md).
+Recording technique has not changed: [TASK-voice-recording.md](notes/TASK-voice-recording.md).
 The tools work now. Read straight through, two seconds between lines, end each line
 crisply.
 
